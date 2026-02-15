@@ -1,0 +1,31 @@
+name: Auto Merge
+
+on:
+  # Merge after review workflow passes
+  workflow_run:
+    workflows: ["Claude Code Review"]
+    types: [completed]
+
+jobs:
+  auto-merge:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Merge PRs labeled auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --label "auto-merge" --state open --json number --jq '.[].number')
+          if [ -z "$prs" ]; then
+            echo "No open PRs with auto-merge label"
+            exit 0
+          fi
+          for pr in $prs; do
+            echo "Merging PR #$pr..."
+            gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --squash --delete-branch \
+              && echo "Merged PR #$pr" \
+              || echo "Could not merge PR #$pr"
+          done
