@@ -1,0 +1,73 @@
+name: CI Doctor
+
+on:
+  workflow_run:
+    types: [completed]
+
+jobs:
+  diagnose:
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
+      id-token: write
+    env:
+      HAS_MAX_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' && 'true' || 'false' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      # Primary: Use Max subscription (no additional cost)
+      - name: Diagnose with Max subscription
+        id: max
+        if: env.HAS_MAX_TOKEN == 'true'
+        continue-on-error: true
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            A CI workflow has failed. Diagnose the failure and post a comment on the PR.
+
+            1. Find the PR associated with this workflow run using `gh pr list --search "${{ github.event.workflow_run.head_sha }}" --json number,title --limit 1`
+            2. If no PR is found, post a comment on the commit using `gh api repos/${{ github.repository }}/commits/${{ github.event.workflow_run.head_sha }}/comments -f body="..."`
+            3. Read the failed workflow logs using `gh run view ${{ github.event.workflow_run.id }} --log-failed`
+            4. Read the diff using `gh pr diff` (if PR exists) or `git diff ${{ github.event.workflow_run.head_sha }}^..${{ github.event.workflow_run.head_sha }}`
+            5. Post a diagnostic comment with: 1) What failed, 2) Why it failed, 3) Suggested fix
+
+            Do NOT push code or create PRs. Comment only.
+          claude_args: "--max-turns 10 --dangerously-skip-permissions --allowed-tools 'Bash(gh pr comment:*)' --allowed-tools 'Bash(gh api:*)' --allowed-tools 'Bash(gh pr list:*)' --allowed-tools 'Bash(gh pr diff:*)' --allowed-tools 'Bash(gh run view:*)' --allowed-tools 'Bash(git diff:*)' --append-system-prompt 'You are a CI failure diagnostician. Read the failed workflow logs and the code changes, then post a concise diagnosis comment on the PR. Format: 1) What failed, 2) Why it failed, 3) Suggested fix. Do not push code.'"
+
+      # Check if fallback is actually needed (avoid double-charging on max-turns)
+      - name: Check if fallback needed
+        id: check_fallback
+        if: steps.max.outcome != 'success'
+        run: |
+          OUTPUT="/home/runner/work/_temp/claude-execution-output.json"
+          if [ -f "$OUTPUT" ] && grep -q "error_max_turns" "$OUTPUT" 2>/dev/null; then
+            echo "Max hit turn limit after doing work — skipping fallback"
+            echo "needed=false" >> $GITHUB_OUTPUT
+          else
+            echo "needed=true" >> $GITHUB_OUTPUT
+          fi
+
+      # Fallback: Use API key (pay-per-token) — only on auth failures, not max-turns
+      - name: Fallback to API key
+        if: steps.max.outcome != 'success' && steps.check_fallback.outputs.needed != 'false'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            A CI workflow has failed. Diagnose the failure and post a comment on the PR.
+
+            1. Find the PR associated with this workflow run using `gh pr list --search "${{ github.event.workflow_run.head_sha }}" --json number,title --limit 1`
+            2. If no PR is found, post a comment on the commit using `gh api repos/${{ github.repository }}/commits/${{ github.event.workflow_run.head_sha }}/comments -f body="..."`
+            3. Read the failed workflow logs using `gh run view ${{ github.event.workflow_run.id }} --log-failed`
+            4. Read the diff using `gh pr diff` (if PR exists) or `git diff ${{ github.event.workflow_run.head_sha }}^..${{ github.event.workflow_run.head_sha }}`
+            5. Post a diagnostic comment with: 1) What failed, 2) Why it failed, 3) Suggested fix
+
+            Do NOT push code or create PRs. Comment only.
+          claude_args: "--max-turns 10 --dangerously-skip-permissions --allowed-tools 'Bash(gh pr comment:*)' --allowed-tools 'Bash(gh api:*)' --allowed-tools 'Bash(gh pr list:*)' --allowed-tools 'Bash(gh pr diff:*)' --allowed-tools 'Bash(gh run view:*)' --allowed-tools 'Bash(git diff:*)' --append-system-prompt 'You are a CI failure diagnostician. Read the failed workflow logs and the code changes, then post a concise diagnosis comment on the PR. Format: 1) What failed, 2) Why it failed, 3) Suggested fix. Do not push code.'"

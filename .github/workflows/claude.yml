@@ -31,6 +31,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
+          token: ${{ secrets.PAT_TOKEN }}
 
       # Primary: Use Max subscription (no additional cost)
       - name: Run with Max subscription
@@ -39,12 +40,13 @@ jobs:
         continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
+          allowed_bots: "claude"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: >-
             --max-turns 25
             --dangerously-skip-permissions
             --allowedTools "Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh issue close:*),Bash(gh label create:*)"
-            --append-system-prompt "IMPORTANT: After pushing changes, always create a PR using gh pr create with a --label flag. Use exactly one of: --label auto-merge, --label needs-review, or --label blocked. Default to needs-review when uncertain. Do NOT provide a Create PR URL link. Use gh pr create --title <title> --body <body> --label <risk-label> directly."
+            --append-system-prompt "IMPORTANT: After pushing changes, always create a PR using gh pr create with a --label flag. Use exactly one of: --label auto-merge, --label needs-review, or --label blocked. Default to needs-review when uncertain. Do NOT provide a Create PR URL link. Use gh pr create --title <title> --body <body> --label <risk-label> directly. IMPORTANT: If triggered from an issue, include 'Closes #<issue-number>' in the PR body so the issue auto-closes when the PR merges."
 
       # Check if fallback is actually needed (avoid double-charging on max-turns)
       - name: Check if fallback needed
@@ -65,9 +67,10 @@ jobs:
         if: steps.max.outcome != 'success' && steps.check_fallback.outputs.needed != 'false'
         uses: anthropics/claude-code-action@v1
         with:
+          allowed_bots: "claude"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: >-
             --max-turns 25
             --dangerously-skip-permissions
             --allowedTools "Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh issue close:*),Bash(gh label create:*)"
-            --append-system-prompt "IMPORTANT: After pushing changes, always create a PR using gh pr create with a --label flag. Use exactly one of: --label auto-merge, --label needs-review, or --label blocked. Default to needs-review when uncertain. Do NOT provide a Create PR URL link. Use gh pr create --title <title> --body <body> --label <risk-label> directly."
+            --append-system-prompt "IMPORTANT: After pushing changes, always create a PR using gh pr create with a --label flag. Use exactly one of: --label auto-merge, --label needs-review, or --label blocked. Default to needs-review when uncertain. Do NOT provide a Create PR URL link. Use gh pr create --title <title> --body <body> --label <risk-label> directly. IMPORTANT: If triggered from an issue, include 'Closes #<issue-number>' in the PR body so the issue auto-closes when the PR merges."
