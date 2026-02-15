@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Merge PRs labeled auto-merge
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --label "auto-merge" --state open --json number --jq '.[].number')
           if [ -z "$prs" ]; then
