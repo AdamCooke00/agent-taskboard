@@ -6,7 +6,7 @@ on:
   pull_request_review_comment:
     types: [created]
   issues:
-    types: [opened, assigned]
+    types: [opened, assigned, labeled]
   pull_request_review:
     types: [submitted]
 
@@ -33,6 +33,29 @@ jobs:
           fetch-depth: 1
           token: ${{ secrets.PAT_TOKEN }}
 
+      # Detect if the issue has a "planning" label (plan-first workflow)
+      - name: Detect planning mode
+        id: mode
+        run: |
+          ISSUE_NUM=""
+          if [ "${{ github.event_name }}" = "issues" ]; then
+            ISSUE_NUM="${{ github.event.issue.number }}"
+          elif [ "${{ github.event_name }}" = "issue_comment" ]; then
+            ISSUE_NUM="${{ github.event.issue.number }}"
+          fi
+          if [ -z "$ISSUE_NUM" ]; then
+            echo "planning=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          LABELS=$(gh issue view "$ISSUE_NUM" --repo "$GITHUB_REPOSITORY" --json labels --jq '[.labels[].name] | join(",")' 2>/dev/null || echo "")
+          if echo "$LABELS" | grep -q "planning"; then
+            echo "planning=true" >> $GITHUB_OUTPUT
+          else
+            echo "planning=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+
       # Primary: Use Max subscription (no additional cost)
       - name: Run with Max subscription
         id: max
@@ -43,10 +66,10 @@ jobs:
           allowed_bots: "claude"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: >-
-            --max-turns 25
-            --dangerously-skip-permissions
-            --allowedTools "Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh issue close:*),Bash(gh label create:*)"
-            --append-system-prompt "IMPORTANT: After pushing changes, always create a PR using gh pr create with a --label flag. Use exactly one of: --label auto-merge, --label needs-review, or --label blocked. Default to needs-review when uncertain. Do NOT provide a Create PR URL link. Use gh pr create --title <title> --body <body> --label <risk-label> directly. IMPORTANT: If triggered from an issue, include 'Closes #<issue-number>' in the PR body so the issue auto-closes when the PR merges."
+            --max-turns ${{ steps.mode.outputs.planning == 'true' && '10' || '25' }}
+            ${{ steps.mode.outputs.planning != 'true' && '--dangerously-skip-permissions' || '' }}
+            ${{ steps.mode.outputs.planning != 'true' && '--allowedTools "Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh issue close:*),Bash(gh label create:*)"' || '' }}
+            --append-system-prompt "${{ steps.mode.outputs.planning == 'true' && 'PLANNING MODE: You are analyzing a task BEFORE implementation. Read the codebase to understand context. Create a detailed implementation plan. Ask clarifying questions if anything is ambiguous. DO NOT edit files, create branches, push code, or create pull requests. Post your plan and questions as a comment. Wait for the human to approve the plan before any implementation.' || 'IMPORTANT: After pushing changes, always create a PR using gh pr create with a --label flag. Use exactly one of: --label auto-merge, --label needs-review, or --label blocked. Default to needs-review when uncertain. Do NOT provide a Create PR URL link. Use gh pr create --title <title> --body <body> --label <risk-label> directly. IMPORTANT: If triggered from an issue, include Closes #<issue-number> in the PR body so the issue auto-closes when the PR merges.' }}"
 
       # Check if fallback is actually needed (avoid double-charging on max-turns)
       - name: Check if fallback needed
@@ -70,7 +93,7 @@ jobs:
           allowed_bots: "claude"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: >-
-            --max-turns 25
-            --dangerously-skip-permissions
-            --allowedTools "Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh issue close:*),Bash(gh label create:*)"
-            --append-system-prompt "IMPORTANT: After pushing changes, always create a PR using gh pr create with a --label flag. Use exactly one of: --label auto-merge, --label needs-review, or --label blocked. Default to needs-review when uncertain. Do NOT provide a Create PR URL link. Use gh pr create --title <title> --body <body> --label <risk-label> directly. IMPORTANT: If triggered from an issue, include 'Closes #<issue-number>' in the PR body so the issue auto-closes when the PR merges."
+            --max-turns ${{ steps.mode.outputs.planning == 'true' && '10' || '25' }}
+            ${{ steps.mode.outputs.planning != 'true' && '--dangerously-skip-permissions' || '' }}
+            ${{ steps.mode.outputs.planning != 'true' && '--allowedTools "Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh issue close:*),Bash(gh label create:*)"' || '' }}
+            --append-system-prompt "${{ steps.mode.outputs.planning == 'true' && 'PLANNING MODE: You are analyzing a task BEFORE implementation. Read the codebase to understand context. Create a detailed implementation plan. Ask clarifying questions if anything is ambiguous. DO NOT edit files, create branches, push code, or create pull requests. Post your plan and questions as a comment. Wait for the human to approve the plan before any implementation.' || 'IMPORTANT: After pushing changes, always create a PR using gh pr create with a --label flag. Use exactly one of: --label auto-merge, --label needs-review, or --label blocked. Default to needs-review when uncertain. Do NOT provide a Create PR URL link. Use gh pr create --title <title> --body <body> --label <risk-label> directly. IMPORTANT: If triggered from an issue, include Closes #<issue-number> in the PR body so the issue auto-closes when the PR merges.' }}"

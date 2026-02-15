@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { owner, repo, title, body } = await req.json();
+  const { owner, repo, title, body, labels } = await req.json();
   if (!owner || !repo || !title || !body) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
@@ -18,7 +18,8 @@ export async function POST(req: NextRequest) {
     owner,
     repo,
     title,
-    body
+    body,
+    labels
   );
   return NextResponse.json(issue);
 }

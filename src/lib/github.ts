@@ -154,7 +154,8 @@ export async function createIssue(
   owner: string,
   repo: string,
   title: string,
-  body: string
+  body: string,
+  labels?: string[]
 ) {
   const octokit = createOctokit(token);
   const { data } = await octokit.issues.create({
@@ -162,8 +163,58 @@ export async function createIssue(
     repo,
     title,
     body,
+    labels: labels || [],
   });
   return data;
+}
+
+// --- Label Management ---
+
+export async function addLabel(
+  token: string,
+  owner: string,
+  repo: string,
+  issueNumber: number,
+  label: string
+) {
+  const octokit = createOctokit(token);
+  await octokit.issues.addLabels({
+    owner,
+    repo,
+    issue_number: issueNumber,
+    labels: [label],
+  });
+}
+
+export async function removeLabel(
+  token: string,
+  owner: string,
+  repo: string,
+  issueNumber: number,
+  label: string
+) {
+  const octokit = createOctokit(token);
+  await octokit.issues.removeLabel({
+    owner,
+    repo,
+    issue_number: issueNumber,
+    name: label,
+  });
+}
+
+export async function getIssueLabels(
+  token: string,
+  owner: string,
+  repo: string,
+  issueNumber: number
+): Promise<string[]> {
+  const octokit = createOctokit(token);
+  const { data } = await octokit.issues.listLabelsOnIssue({
+    owner,
+    repo,
+    issue_number: issueNumber,
+  });
+  return data.map((l) => l.name);
 }
 
 // --- Post Comment ---
@@ -196,6 +247,7 @@ function computeAttentionLevel(
 
   if (labelNames.includes("blocked")) return "urgent";
   if (labelNames.includes("needs-review")) return "review";
+  if (labelNames.includes("planning")) return "review";
 
   if (lastComment?.author.isBot && containsQuestion(lastComment.body)) {
     return "urgent";

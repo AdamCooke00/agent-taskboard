@@ -1,31 +1,32 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useMessages, sendMessage } from "@/hooks/use-messages";
 import { useSession } from "@/hooks/use-session";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { ChatInput } from "@/components/chat/chat-input";
-import { ArrowLeft, GitPullRequest, CircleDot, ExternalLink } from "lucide-react";
+import {
+  ArrowLeft,
+  GitPullRequest,
+  CircleDot,
+  ExternalLink,
+  CheckCircle2,
+  Loader2,
+} from "lucide-react";
 import type { Message } from "@/lib/types";
+import useSWR from "swr";
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 function parseConversationId(id: string) {
-  // Format: owner-repo-type-number
-  // But owner and repo can contain hyphens, so we parse from the end
   const parts = id.split("-");
   const number = parseInt(parts.pop()!, 10);
-  const type = parts.pop()!; // "issue" or "pr"
-  // Everything remaining is owner-repo, split on first hyphen... actually this is tricky.
-  // Let's use a different approach: find "issue" or "pr" and split around it
+  const type = parts.pop()!;
   const joinedBack = parts.join("-");
-  // Find the last occurrence of the owner/repo separator
-  // We stored it as owner-repo, so we need to find the slash equivalent
-  // Actually, in our ID format we used "-" throughout. Let's find owner/repo from the session tracked repos.
-  // Simpler: just split on first hyphen for owner, rest is repo
   const firstHyphen = joinedBack.indexOf("-");
   const owner = joinedBack.slice(0, firstHyphen);
   const repo = joinedBack.slice(firstHyphen + 1);
-
   return { owner, repo, type, number };
 }
 
@@ -38,9 +39,21 @@ export default function ConversationPage() {
   const { owner, repo, type, number } = parseConversationId(id);
   const { messages, isLoading, mutate } = useMessages(owner, repo, number);
   const [sending, setSending] = useState(false);
+  const [approving, setApproving] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom on new messages
+  // Fetch labels for this issue to detect planning mode
+  const { data: labelsData, mutate: mutateLabels } = useSWR(
+    type === "issue"
+      ? `/api/github/labels?owner=${owner}&repo=${repo}&number=${number}`
+      : null,
+    fetcher,
+    { refreshInterval: 15000 }
+  );
+
+  const labels: string[] = labelsData?.labels || [];
+  const isPlanning = labels.includes("planning");
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
@@ -49,10 +62,8 @@ export default function ConversationPage() {
     if (!user) return;
     setSending(true);
 
-    // Prepend @claude to trigger the agent workflow
     const messageBody = `@claude ${body}`;
 
-    // Optimistic update
     const optimisticMessage: Message = {
       id: Date.now(),
       author: {
@@ -69,10 +80,42 @@ export default function ConversationPage() {
 
     await sendMessage(owner, repo, number, messageBody);
     setSending(false);
-    mutate(); // Revalidate with server data
+    mutate();
   };
 
-  const title = messages.length > 0 ? "" : "Loading...";
+  const handleApprove = useCallback(async () => {
+    if (!user || approving) return;
+    setApproving(true);
+
+    // 1. Remove the "planning" label
+    await fetch("/api/github/labels", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ owner, repo, number, label: "planning" }),
+    });
+
+    // 2. Post approval comment to trigger implementation
+    const approvalBody = "@claude Plan approved. Proceed with implementation.";
+    const optimisticMessage: Message = {
+      id: Date.now(),
+      author: {
+        login: user.login,
+        avatarUrl: user.avatar_url,
+        isBot: false,
+      },
+      body: approvalBody,
+      createdAt: new Date().toISOString(),
+      type: "comment",
+    };
+
+    mutate([...messages, optimisticMessage], false);
+    await sendMessage(owner, repo, number, approvalBody);
+
+    setApproving(false);
+    mutateLabels();
+    mutate();
+  }, [user, approving, owner, repo, number, messages, mutate, mutateLabels]);
+
   const githubUrl = `https://github.com/${owner}/${repo}/${type === "pr" ? "pull" : "issues"}/${number}`;
 
   return (
@@ -94,6 +137,11 @@ export default function ConversationPage() {
                 {owner}/{repo} #{number}
               </span>
             </div>
+            {isPlanning && (
+              <span className="mt-0.5 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                Planning
+              </span>
+            )}
           </div>
           <a
             href={githubUrl}
@@ -124,12 +172,30 @@ export default function ConversationPage() {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Approve Plan Button (shown when in planning mode and agent has responded) */}
+      {isPlanning && messages.some((m) => m.author.isBot) && (
+        <div className="border-t bg-amber-50 px-4 py-3 dark:bg-amber-950/20">
+          <button
+            onClick={handleApprove}
+            disabled={approving}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-50"
+          >
+            {approving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4" />
+            )}
+            {approving ? "Approving..." : "Approve Plan & Implement"}
+          </button>
+        </div>
+      )}
+
       {/* Input */}
       <div className="sticky bottom-0">
         <ChatInput
           onSend={handleSend}
           disabled={sending}
-          placeholder="Reply to agent..."
+          placeholder={isPlanning ? "Discuss the plan..." : "Reply to agent..."}
         />
       </div>
     </div>

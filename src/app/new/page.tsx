@@ -20,12 +20,12 @@ export default function NewTaskPage() {
 
     const [owner, repo] = selectedRepo.split("/");
     const title = extractIssueTitle(message);
-    const body = `@claude ${message}`;
+    const body = `@claude\n\n## Task\n${message}\n\n## Instructions\nAnalyze the codebase and create a detailed implementation plan for this task. Ask clarifying questions if anything is ambiguous. Do NOT implement until I approve the plan.`;
 
     const res = await fetch("/api/github/issues", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ owner, repo, title, body }),
+      body: JSON.stringify({ owner, repo, title, body, labels: ["planning"] }),
     });
 
     const issue = await res.json();
