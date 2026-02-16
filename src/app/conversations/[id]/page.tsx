@@ -190,8 +190,8 @@ export default function ConversationPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Provide Feedback Button (shown during planning/review phases) */}
-      {(isPlanning || isPlanReview) && messages.some((m) => m.author.isBot) && (
+      {/* Provide Feedback Button (shown during planning/review phases when agent has finished) */}
+      {(isPlanning || isPlanReview) && !isWorking && messages.some((m) => m.author.isBot) && (
         <div className="border-t bg-blue-50 px-4 py-3 dark:bg-blue-950/20">
           <button
             onClick={handleProvideFeedback}
