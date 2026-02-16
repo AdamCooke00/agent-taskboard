@@ -183,7 +183,9 @@ export default function ConversationPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Approve Plan Button (shown when in planning mode and agent has responded, but NOT when agent is working) */}
+      {/* Approve Plan Button (shown when in planning mode and agent has responded, but NOT when agent is working)
+          Note: Button is hidden when isWorking to prevent approval during active agent work.
+          If the claude-working label gets stuck, users can manually remove it from GitHub. */}
       {isPlanning && !isWorking && messages.some((m) => m.author.isBot) && (
         <div className="border-t bg-amber-50 px-4 py-3 dark:bg-amber-950/20">
           <button

@@ -246,8 +246,9 @@ function computeAttentionLevel(
 ): Conversation["attentionLevel"] {
   const labelNames = labels.map((l) => l.name.toLowerCase());
 
-  if (labelNames.includes("claude-working")) return "working";
+  // Blocked status takes priority over working to surface urgent issues
   if (labelNames.includes("blocked")) return "urgent";
+  if (labelNames.includes("claude-working")) return "working";
   if (labelNames.includes("needs-review")) return "review";
   if (labelNames.includes("planning")) return "review";
 
