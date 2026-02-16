@@ -67,10 +67,10 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: >-
             --model ${{ steps.mode.outputs.planning == 'true' && 'claude-opus-4-6' || 'claude-sonnet-4-5-20250929' }}
-            --max-turns ${{ steps.mode.outputs.planning == 'true' && '15' || '25' }}
+            --max-turns ${{ steps.mode.outputs.planning == 'true' && '25' || '50' }}
             ${{ steps.mode.outputs.planning != 'true' && '--dangerously-skip-permissions' || '' }}
             ${{ steps.mode.outputs.planning != 'true' && '--allowedTools "Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh issue close:*),Bash(gh label create:*)"' || '' }}
-            --append-system-prompt "${{ steps.mode.outputs.planning == 'true' && 'PLANNING MODE: You are analyzing a task BEFORE implementation. Read the codebase to understand context. Create a detailed implementation plan. Ask clarifying questions if anything is ambiguous. DO NOT edit files, create branches, push code, or create pull requests. Post your plan and questions as a comment. Wait for the human to approve the plan before any implementation.' || 'IMPORTANT: After pushing changes, always create a PR using gh pr create with a --label flag. Use exactly one of: --label auto-merge, --label needs-review, or --label blocked. Default to needs-review when uncertain. Do NOT provide a Create PR URL link. Use gh pr create --title <title> --body <body> --label <risk-label> directly. IMPORTANT: If triggered from an issue, include Closes #<issue-number> in the PR body so the issue auto-closes when the PR merges.' }}"
+            --append-system-prompt "${{ steps.mode.outputs.planning == 'true' && 'PLANNING MODE: You are analyzing a task BEFORE implementation. Read the codebase to understand context. Create a detailed implementation plan. Ask clarifying questions if anything is ambiguous. You are in planning mode — do NOT edit files, create branches, push code, or create pull requests. You must wait for the human to approve your plan before any implementation begins. Post your plan and questions as a comment. Never fabricate technical constraints (e.g. permissions, GitHub App limitations) to explain why you are not implementing — simply state that you are in planning mode and awaiting approval. CRITICAL: You MUST post your complete plan as a comment before stopping. Do not stop until the plan is posted.' || 'CRITICAL WORKFLOW: You are running in CI with a turn limit. Follow this exact order: 1) Create a working branch and push it immediately. 2) Commit and push after EVERY meaningful change — do NOT batch commits until the end. 3) Create a PR early using gh pr create, even before work is complete, so progress is never lost. 4) Use exactly one label: --label auto-merge, --label needs-review, or --label blocked. Default to needs-review. 5) If triggered from an issue, include Closes #<issue-number> in the PR body. 6) NEVER stop without having committed and pushed your latest changes. 7) If you sense you are running low on turns, immediately commit, push, and ensure the PR exists.' }}"
 
       # Check if fallback is actually needed (avoid double-charging on max-turns)
       - name: Check if fallback needed
@@ -95,7 +95,49 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: >-
             --model ${{ steps.mode.outputs.planning == 'true' && 'claude-opus-4-6' || 'claude-sonnet-4-5-20250929' }}
-            --max-turns ${{ steps.mode.outputs.planning == 'true' && '15' || '25' }}
+            --max-turns ${{ steps.mode.outputs.planning == 'true' && '25' || '50' }}
             ${{ steps.mode.outputs.planning != 'true' && '--dangerously-skip-permissions' || '' }}
             ${{ steps.mode.outputs.planning != 'true' && '--allowedTools "Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh issue close:*),Bash(gh label create:*)"' || '' }}
-            --append-system-prompt "${{ steps.mode.outputs.planning == 'true' && 'PLANNING MODE: You are analyzing a task BEFORE implementation. Read the codebase to understand context. Create a detailed implementation plan. Ask clarifying questions if anything is ambiguous. DO NOT edit files, create branches, push code, or create pull requests. Post your plan and questions as a comment. Wait for the human to approve the plan before any implementation.' || 'IMPORTANT: After pushing changes, always create a PR using gh pr create with a --label flag. Use exactly one of: --label auto-merge, --label needs-review, or --label blocked. Default to needs-review when uncertain. Do NOT provide a Create PR URL link. Use gh pr create --title <title> --body <body> --label <risk-label> directly. IMPORTANT: If triggered from an issue, include Closes #<issue-number> in the PR body so the issue auto-closes when the PR merges.' }}"
+            --append-system-prompt "${{ steps.mode.outputs.planning == 'true' && 'PLANNING MODE: You are analyzing a task BEFORE implementation. Read the codebase to understand context. Create a detailed implementation plan. Ask clarifying questions if anything is ambiguous. You are in planning mode — do NOT edit files, create branches, push code, or create pull requests. You must wait for the human to approve your plan before any implementation begins. Post your plan and questions as a comment. Never fabricate technical constraints (e.g. permissions, GitHub App limitations) to explain why you are not implementing — simply state that you are in planning mode and awaiting approval. CRITICAL: You MUST post your complete plan as a comment before stopping. Do not stop until the plan is posted.' || 'CRITICAL WORKFLOW: You are running in CI with a turn limit. Follow this exact order: 1) Create a working branch and push it immediately. 2) Commit and push after EVERY meaningful change — do NOT batch commits until the end. 3) Create a PR early using gh pr create, even before work is complete, so progress is never lost. 4) Use exactly one label: --label auto-merge, --label needs-review, or --label blocked. Default to needs-review. 5) If triggered from an issue, include Closes #<issue-number> in the PR body. 6) NEVER stop without having committed and pushed your latest changes. 7) If you sense you are running low on turns, immediately commit, push, and ensure the PR exists.' }}"
+
+      # Auto-continue: if Claude hit the turn limit, post a continuation comment
+      - name: Auto-continue on turn exhaustion
+        if: always() && steps.mode.outputs.planning != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          # Check for turn exhaustion in execution output
+          OUTPUT="/home/runner/work/_temp/claude-execution-output.json"
+          if [ ! -f "$OUTPUT" ] || ! grep -q "error_max_turns" "$OUTPUT" 2>/dev/null; then
+            echo "No turn exhaustion detected — skipping auto-continue"
+            exit 0
+          fi
+
+          # Determine issue/PR number
+          NUM=""
+          COMMENT_CMD=""
+          if [ "${{ github.event_name }}" = "issue_comment" ] || [ "${{ github.event_name }}" = "issues" ]; then
+            NUM="${{ github.event.issue.number }}"
+            COMMENT_CMD="gh issue comment"
+          elif [ "${{ github.event_name }}" = "pull_request_review_comment" ] || [ "${{ github.event_name }}" = "pull_request_review" ]; then
+            NUM="${{ github.event.pull_request.number }}"
+            COMMENT_CMD="gh pr comment"
+          fi
+
+          if [ -z "$NUM" ]; then
+            echo "Could not determine issue/PR number — skipping"
+            exit 0
+          fi
+
+          # Count existing auto-continue comments (max 2 retries)
+          COUNT=$(gh api "repos/${{ github.repository }}/issues/${NUM}/comments" \
+            --paginate --jq '[.[] | select(.body | contains("<!-- auto-continue -->"))] | length' 2>/dev/null || echo "0")
+
+          if [ "$COUNT" -ge 2 ]; then
+            echo "Already auto-continued ${COUNT} times — stopping to prevent infinite loop"
+            exit 0
+          fi
+
+          echo "Turn exhaustion detected (auto-continue $((COUNT + 1))/2) — posting continue comment"
+          $COMMENT_CMD "$NUM" --repo "${{ github.repository }}" --body "<!-- auto-continue -->
+          @claude Continue where you left off. The previous run hit its turn limit. Check for any existing branches or commits you have already made. Complete the remaining work — commit, push, and ensure a PR exists."
