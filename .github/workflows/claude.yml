@@ -241,7 +241,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
-          prompt: "Execute as the Plan Agent for this issue."
+          prompt: "Create an implementation plan for issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.PAT_TOKEN }}
@@ -257,7 +257,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
-          prompt: "Execute as the Plan Agent for this issue."
+          prompt: "Create an implementation plan for issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.PAT_TOKEN }}
@@ -276,7 +276,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
-          prompt: "Execute as the Review Agent for this issue."
+          prompt: "Review the plan for issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.PAT_TOKEN }}
@@ -292,7 +292,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
-          prompt: "Execute as the Review Agent for this issue."
+          prompt: "Review the plan for issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.PAT_TOKEN }}
