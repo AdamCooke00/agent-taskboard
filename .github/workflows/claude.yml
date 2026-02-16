@@ -238,6 +238,8 @@ jobs:
         if: steps.mode.outputs.agent == 'plan' && env.HAS_MAX_TOKEN == 'true'
         continue-on-error: true
         uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
           allowed_bots: "claude"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -251,6 +253,8 @@ jobs:
       - name: Run Plan Agent (Fallback)
         if: steps.mode.outputs.agent == 'plan' && (env.HAS_MAX_TOKEN != 'true' || steps.plan_max.outcome != 'success')
         uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
           allowed_bots: "claude"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -267,6 +271,8 @@ jobs:
         if: steps.mode.outputs.agent == 'review' && env.HAS_MAX_TOKEN == 'true'
         continue-on-error: true
         uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
           allowed_bots: "claude"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -280,6 +286,8 @@ jobs:
       - name: Run Review Agent (Fallback)
         if: steps.mode.outputs.agent == 'review' && (env.HAS_MAX_TOKEN != 'true' || steps.review_max.outcome != 'success')
         uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
           allowed_bots: "claude"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
