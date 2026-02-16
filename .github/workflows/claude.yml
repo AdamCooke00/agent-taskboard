@@ -37,7 +37,9 @@ jobs:
             ISSUE_NUM="${{ github.event.issue.number }}"
           fi
           if [ -n "$ISSUE_NUM" ]; then
-            gh issue edit "$ISSUE_NUM" --add-label "claude-working" --repo "$GITHUB_REPOSITORY" || true
+            if ! gh issue edit "$ISSUE_NUM" --add-label "claude-working" --repo "$GITHUB_REPOSITORY" 2>&1; then
+              echo "Warning: Failed to add claude-working label (may not exist or auth issue)"
+            fi
           fi
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
@@ -168,7 +170,9 @@ jobs:
             ISSUE_NUM="${{ github.event.issue.number }}"
           fi
           if [ -n "$ISSUE_NUM" ]; then
-            gh issue edit "$ISSUE_NUM" --remove-label "claude-working" --repo "$GITHUB_REPOSITORY" || true
+            if ! gh issue edit "$ISSUE_NUM" --remove-label "claude-working" --repo "$GITHUB_REPOSITORY" 2>&1; then
+              echo "Warning: Failed to remove claude-working label (may not exist or auth issue)"
+            fi
           fi
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
