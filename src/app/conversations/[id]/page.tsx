@@ -53,6 +53,9 @@ export default function ConversationPage() {
 
   const labels: string[] = labelsData?.labels || [];
   const isPlanning = labels.includes("planning");
+  const isPlanReview = labels.includes("plan-review");
+  const isReadyToImplement = labels.includes("ready-to-implement");
+  const needsHumanInput = labels.includes("needs-human-input");
   const isWorking = labels.includes("claude-working");
 
   useEffect(() => {
@@ -84,19 +87,12 @@ export default function ConversationPage() {
     mutate();
   };
 
-  const handleApprove = useCallback(async () => {
+  const handleProvideFeedback = useCallback(async () => {
     if (!user || approving) return;
     setApproving(true);
 
-    // 1. Remove the "planning" label
-    await fetch("/api/github/labels", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ owner, repo, number, label: "planning" }),
-    });
-
-    // 2. Post approval comment to trigger implementation
-    const approvalBody = "@claude Plan approved. Proceed with implementation.";
+    // Post feedback comment (agents will read and incorporate)
+    const feedbackBody = "@claude This plan looks good. You can proceed with implementation.";
     const optimisticMessage: Message = {
       id: Date.now(),
       author: {
@@ -104,13 +100,13 @@ export default function ConversationPage() {
         avatarUrl: user.avatar_url,
         isBot: false,
       },
-      body: approvalBody,
+      body: feedbackBody,
       createdAt: new Date().toISOString(),
       type: "comment",
     };
 
     mutate([...messages, optimisticMessage], false);
-    await sendMessage(owner, repo, number, approvalBody);
+    await sendMessage(owner, repo, number, feedbackBody);
 
     setApproving(false);
     mutateLabels();
@@ -145,8 +141,23 @@ export default function ConversationPage() {
               </span>
             )}
             {!isWorking && isPlanning && (
-              <span className="mt-0.5 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+              <span className="mt-0.5 inline-block rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
                 Planning
+              </span>
+            )}
+            {!isWorking && isPlanReview && (
+              <span className="mt-0.5 inline-block rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
+                Under Review
+              </span>
+            )}
+            {!isWorking && isReadyToImplement && (
+              <span className="mt-0.5 inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                Ready to Implement
+              </span>
+            )}
+            {needsHumanInput && (
+              <span className="mt-0.5 inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                Needs Your Input
               </span>
             )}
           </div>
@@ -179,21 +190,30 @@ export default function ConversationPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Approve Plan Button (shown when in planning mode and agent has responded) */}
-      {isPlanning && messages.some((m) => m.author.isBot) && (
-        <div className="border-t bg-amber-50 px-4 py-3 dark:bg-amber-950/20">
+      {/* Provide Feedback Button (shown during planning/review phases) */}
+      {(isPlanning || isPlanReview) && messages.some((m) => m.author.isBot) && (
+        <div className="border-t bg-blue-50 px-4 py-3 dark:bg-blue-950/20">
           <button
-            onClick={handleApprove}
+            onClick={handleProvideFeedback}
             disabled={approving}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
           >
             {approving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <CheckCircle2 className="h-4 w-4" />
             )}
-            {approving ? "Approving..." : "Approve Plan & Implement"}
+            {approving ? "Sending..." : "Looks Good - Proceed"}
           </button>
+        </div>
+      )}
+
+      {/* Human Input Required Banner */}
+      {needsHumanInput && (
+        <div className="border-t bg-red-50 px-4 py-3 dark:bg-red-950/20">
+          <p className="text-center text-sm text-red-800 dark:text-red-200">
+            The agents need your decision. Review the plan and provide guidance below, or manage labels directly on GitHub.
+          </p>
         </div>
       )}
 
@@ -202,7 +222,7 @@ export default function ConversationPage() {
         <ChatInput
           onSend={handleSend}
           disabled={sending}
-          placeholder={isPlanning ? "Discuss the plan..." : "Reply to agent..."}
+          placeholder={isPlanning ? "Provide feedback or guidance..." : "Reply to agent..."}
         />
       </div>
     </div>

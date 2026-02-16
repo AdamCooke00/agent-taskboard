@@ -25,7 +25,7 @@ export default function NewTaskPage() {
     const res = await fetch("/api/github/issues", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ owner, repo, title, body, labels: ["planning"] }),
+      body: JSON.stringify({ owner, repo, title, body, labels: [] }),
     });
 
     const issue = await res.json();

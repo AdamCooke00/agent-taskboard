@@ -8,6 +8,8 @@ so every line costs tokens. Move detailed workflow instructions into
 
 Agent Taskboard is a mobile-first PWA that serves as a command center for managing AI coding agents powered by the Automated Developer Framework. It wraps GitHub's issue/PR/comment model into a chat-like messaging experience. Core concept: conversations = GitHub issues, messages = comments, new tasks = issue creation. All data lives in GitHub — no traditional database.
 
+**Multi-Agent Workflow**: The framework uses a three-agent system (Plan → Review → Implement) with label-based state transitions. The UI displays these states but does NOT manage labels — agents and the framework control all label transitions. Users provide guidance through comments, which agents read and incorporate.
+
 ## Tech Stack
 
 - TypeScript + Next.js 14 (App Router)
