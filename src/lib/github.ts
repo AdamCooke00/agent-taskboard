@@ -144,6 +144,38 @@ export async function listMessages(
     });
   }
 
+  // For PRs, also fetch review submissions
+  if (issue.pull_request) {
+    const { data: reviews } = await octokit.pulls.listReviews({
+      owner,
+      repo,
+      pull_number: issueNumber,
+      per_page: 100,
+    });
+
+    for (const review of reviews) {
+      // Skip reviews with empty bodies (e.g., auto-approvals with no text)
+      if (!review.body) continue;
+
+      messages.push({
+        id: review.id,
+        author: {
+          login: review.user?.login || "unknown",
+          avatarUrl: review.user?.avatar_url || "",
+          isBot: review.user?.type === "Bot",
+        },
+        body: review.body,
+        createdAt: review.submitted_at || "",
+        type: "review_comment",
+      });
+    }
+  }
+
+  // Sort messages chronologically
+  messages.sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+
   return messages;
 }
 
