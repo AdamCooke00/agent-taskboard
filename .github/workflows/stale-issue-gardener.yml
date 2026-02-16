@@ -54,6 +54,8 @@ jobs:
             - Skip issues that are less than 24 hours old
 
             **Step 4: Create summary report**
+            - Count the total actions: stale_count + closed_count + labeled_count
+            - If the total is ZERO (no actions taken), do NOT create any report issue at all
             - If you took ANY actions (marked stale, closed, or labeled issues), create a summary issue:
               - Title: "Gardener Report — [today's date YYYY-MM-DD]"
               - Label: `gardener-report` (create if it doesn't exist)
@@ -62,7 +64,8 @@ jobs:
                 - How many issues were closed
                 - How many issues were labeled
                 - List the issue numbers in each category
-            - If NO actions were taken, do not create a report issue
+            - After creating the report, verify the counts in the body
+            - If all counts are zero in a report you just created, immediately close it: `gh issue close <number> --comment "Auto-closing: no actions were taken during this run."`
           claude_args: "--max-turns 10 --allowedTools 'Bash(gh issue edit:*),Bash(gh issue close:*),Bash(gh issue comment:*),Bash(gh issue create:*),Bash(gh issue list:*),Bash(gh label create:*)' --dangerously-skip-permissions"
 
       # Check if fallback is actually needed (avoid double-charging on max-turns)
@@ -110,6 +113,8 @@ jobs:
             - Skip issues that are less than 24 hours old
 
             **Step 4: Create summary report**
+            - Count the total actions: stale_count + closed_count + labeled_count
+            - If the total is ZERO (no actions taken), do NOT create any report issue at all
             - If you took ANY actions (marked stale, closed, or labeled issues), create a summary issue:
               - Title: "Gardener Report — [today's date YYYY-MM-DD]"
               - Label: `gardener-report` (create if it doesn't exist)
@@ -118,5 +123,6 @@ jobs:
                 - How many issues were closed
                 - How many issues were labeled
                 - List the issue numbers in each category
-            - If NO actions were taken, do not create a report issue
+            - After creating the report, verify the counts in the body
+            - If all counts are zero in a report you just created, immediately close it: `gh issue close <number> --comment "Auto-closing: no actions were taken during this run."`
           claude_args: "--max-turns 10 --allowedTools 'Bash(gh issue edit:*),Bash(gh issue close:*),Bash(gh issue comment:*),Bash(gh issue create:*),Bash(gh issue list:*),Bash(gh label create:*)' --dangerously-skip-permissions"
