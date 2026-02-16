@@ -247,7 +247,7 @@ jobs:
           claude_args: >-
             --model claude-opus-4-6
             --max-turns 50
-            --allowedTools "Read,Glob,Grep,WebSearch,Bash(gh issue edit:--add-label*),Bash(gh issue edit:--remove-label*),Bash(gh api:repos/*/issues/comments/*/reactions*)"
+            --allowedTools "Read,Glob,Grep,WebSearch,Bash(gh issue edit *),Bash(gh api repos/*/issues/comments/*/reactions *)"
             --append-system-prompt "${{ env.PLAN_AGENT_PROMPT }}"
 
       - name: Run Plan Agent (Fallback)
@@ -262,7 +262,7 @@ jobs:
           claude_args: >-
             --model claude-opus-4-6
             --max-turns 50
-            --allowedTools "Read,Glob,Grep,WebSearch,Bash(gh issue edit:--add-label*),Bash(gh issue edit:--remove-label*),Bash(gh api:repos/*/issues/comments/*/reactions*)"
+            --allowedTools "Read,Glob,Grep,WebSearch,Bash(gh issue edit *),Bash(gh api repos/*/issues/comments/*/reactions *)"
             --append-system-prompt "${{ env.PLAN_AGENT_PROMPT }}"
 
       # Review Agent: Critique plan (Opus, 50 turns, read-only)
@@ -280,7 +280,7 @@ jobs:
           claude_args: >-
             --model claude-opus-4-6
             --max-turns 50
-            --allowedTools "Read,Glob,Grep,WebSearch,Bash(gh issue edit:--add-label*),Bash(gh issue edit:--remove-label*),Bash(gh api:repos/*/issues/*/events*),Bash(gh api:repos/*/issues/comments/*/reactions*)"
+            --allowedTools "Read,Glob,Grep,WebSearch,Bash(gh issue edit *),Bash(gh api repos/*/issues/*/events *),Bash(gh api repos/*/issues/comments/*/reactions *)"
             --append-system-prompt "${{ env.REVIEW_AGENT_PROMPT }}"
 
       - name: Run Review Agent (Fallback)
@@ -295,7 +295,7 @@ jobs:
           claude_args: >-
             --model claude-opus-4-6
             --max-turns 50
-            --allowedTools "Read,Glob,Grep,WebSearch,Bash(gh issue edit:--add-label*),Bash(gh issue edit:--remove-label*),Bash(gh api:repos/*/issues/*/events*),Bash(gh api:repos/*/issues/comments/*/reactions*)"
+            --allowedTools "Read,Glob,Grep,WebSearch,Bash(gh issue edit *),Bash(gh api repos/*/issues/*/events *),Bash(gh api repos/*/issues/comments/*/reactions *)"
             --append-system-prompt "${{ env.REVIEW_AGENT_PROMPT }}"
 
       # Implementation Agent: Execute approved plan (Sonnet, 50 turns)
