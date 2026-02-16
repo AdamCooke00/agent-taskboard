@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/prompt-tracking/log-prompt.sh",
+            "async": true,
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'INPUT=$(cat); ACTIVE=$(echo \"$INPUT\" | jq -r \".stop_hook_active\" 2>/dev/null || echo \"true\"); if [ \"$ACTIVE\" = \"true\" ]; then exit 0; fi; echo \"STOP CHECK: Have you committed and pushed all changes? Have you created a PR (implementation) or posted your plan (planning)? If anything is incomplete, continue working.\" >&2; exit 2'",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
