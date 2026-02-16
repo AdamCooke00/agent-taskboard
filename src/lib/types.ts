@@ -58,7 +58,7 @@ export interface Label {
   color: string;
 }
 
-export type AttentionLevel = "urgent" | "review" | "info" | "none";
+export type AttentionLevel = "working" | "urgent" | "review" | "info" | "none";
 
 export interface AttentionItem {
   conversation: Conversation;

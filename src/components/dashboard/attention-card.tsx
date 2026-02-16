@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   GitPullRequest,
   CircleDot,
+  Loader2,
 } from "lucide-react";
 import { formatRelativeTime, truncate } from "@/lib/utils";
 import type { Conversation } from "@/lib/types";
@@ -17,6 +18,12 @@ interface AttentionCardProps {
 }
 
 const LEVEL_CONFIG = {
+  working: {
+    icon: Loader2,
+    iconColor: "text-blue-500 animate-spin",
+    bg: "bg-blue-500/5 border-blue-500/20",
+    label: "Agent working",
+  },
   urgent: {
     icon: AlertCircle,
     iconColor: "text-red-500",

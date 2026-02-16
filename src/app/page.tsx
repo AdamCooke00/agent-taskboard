@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 
 function getAttentionReason(conversation: { attentionLevel: string; labels: { name: string }[] }): string {
   switch (conversation.attentionLevel) {
+    case "working":
+      return "Agent is actively working on this task";
     case "urgent":
       if (conversation.labels.some((l) => l.name.toLowerCase() === "blocked"))
         return "Agent is blocked and needs your help";

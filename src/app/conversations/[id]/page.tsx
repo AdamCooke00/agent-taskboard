@@ -53,6 +53,7 @@ export default function ConversationPage() {
 
   const labels: string[] = labelsData?.labels || [];
   const isPlanning = labels.includes("planning");
+  const isWorking = labels.includes("claude-working");
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -154,6 +155,16 @@ export default function ConversationPage() {
         </div>
       </header>
 
+      {/* Agent Working Banner */}
+      {isWorking && (
+        <div className="border-b bg-blue-50 px-4 py-3 dark:bg-blue-950/20">
+          <div className="flex items-center gap-2 text-sm text-blue-900 dark:text-blue-200">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="font-medium">Agent is working on this...</span>
+          </div>
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {isLoading ? (
@@ -172,8 +183,8 @@ export default function ConversationPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Approve Plan Button (shown when in planning mode and agent has responded) */}
-      {isPlanning && messages.some((m) => m.author.isBot) && (
+      {/* Approve Plan Button (shown when in planning mode and agent has responded, but NOT when agent is working) */}
+      {isPlanning && !isWorking && messages.some((m) => m.author.isBot) && (
         <div className="border-t bg-amber-50 px-4 py-3 dark:bg-amber-950/20">
           <button
             onClick={handleApprove}
