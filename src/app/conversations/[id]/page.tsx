@@ -6,6 +6,7 @@ import { useMessages, sendMessage } from "@/hooks/use-messages";
 import { useSession } from "@/hooks/use-session";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { ChatInput } from "@/components/chat/chat-input";
+import { LastActivity } from "@/components/conversation/last-activity";
 import {
   ArrowLeft,
   GitPullRequest,
@@ -41,6 +42,12 @@ export default function ConversationPage() {
   const [sending, setSending] = useState(false);
   const [approving, setApproving] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Derive last activity timestamp from the most recent message
+  // Note: messages array always includes the issue body as the first item (index 0)
+  const lastActivity = !isLoading && messages.length > 0
+    ? messages[messages.length - 1].createdAt
+    : null;
 
   // Fetch labels for this issue to detect planning mode
   const { data: labelsData, mutate: mutateLabels } = useSWR(
@@ -160,6 +167,7 @@ export default function ConversationPage() {
                 Needs Your Input
               </span>
             )}
+            <LastActivity timestamp={lastActivity} />
           </div>
           <a
             href={githubUrl}
