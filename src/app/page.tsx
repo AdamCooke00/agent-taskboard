@@ -6,6 +6,7 @@ import { useShowCompleted } from "@/hooks/use-show-completed";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { AttentionCard } from "@/components/dashboard/attention-card";
 import { ConversationItem } from "@/components/conversation/conversation-item";
+import { CompletedView } from "@/components/dashboard/completed-view";
 import { Settings, RefreshCw, Inbox, Archive } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -32,17 +33,15 @@ export default function DashboardPage() {
   const { conversations, isLoading, mutate } = useConversations();
   const { showCompleted, toggleShowCompleted, isLoaded } = useShowCompleted();
 
-  // Filter out closed items unless showCompleted is true
-  // While loading preference (!isLoaded), show all conversations to avoid empty state flash
-  const filteredConversations = !isLoaded || showCompleted
-    ? conversations
-    : conversations.filter((c) => c.state === "open");
+  // Filter out closed items when not showing completed view
+  // While loading preference (!isLoaded), show open items only to avoid confusion
+  const openConversations = conversations.filter((c) => c.state === "open");
 
   // Separate attention items from regular activity
-  const attentionItems = filteredConversations.filter(
+  const attentionItems = openConversations.filter(
     (c) => c.attentionLevel !== "none"
   );
-  const recentActivity = filteredConversations.slice(0, 10);
+  const recentActivity = openConversations.slice(0, 10);
 
   // Not configured yet
   if (trackedRepos.length === 0) {
@@ -119,6 +118,11 @@ export default function DashboardPage() {
               />
             ))}
           </div>
+        ) : showCompleted ? (
+          <CompletedView
+            conversations={conversations}
+            trackedRepos={trackedRepos}
+          />
         ) : (
           <>
             {/* Attention items */}
