@@ -183,6 +183,13 @@ jobs:
       - name: Detect agent mode
         id: mode
         run: |
+          # Skip agent execution on issues.opened - initialization only adds label
+          if [ "${{ github.event_name }}" = "issues" ] && [ "${{ github.event.action }}" = "opened" ]; then
+            echo "agent=none" >> $GITHUB_OUTPUT
+            echo "Agent mode: none (initialization run - label added, waiting for labeled event)"
+            exit 0
+          fi
+
           ISSUE_NUM=""
           if [ "${{ github.event_name }}" = "issues" ]; then
             ISSUE_NUM="${{ github.event.issue.number }}"
