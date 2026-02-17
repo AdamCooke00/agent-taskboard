@@ -159,3 +159,78 @@ The framework watches for:
    - Implementation Agent: Auto-continue mechanism (max 2 retries)
 3. **Read-Only Agents**: Plan and Review agents cannot edit files, create branches, or push code
 4. **Label Ownership**: Only agents and framework manage labels (UI does not modify them)
+
+## PR Lifecycle Labels
+
+| Label | Color | Description | Set By | Triggers |
+|-------|-------|-------------|--------|----------|
+| `auto-merge` | `#0cce6b` (green) | Safe to merge without human review | PR Label Agent | Auto Merge workflow |
+| `needs-review` | `#fbca04` (yellow) | Requires human review before merge | PR Label Agent | Human review |
+| `blocked` | `#d73a4a` (red) | Cannot proceed without fixes | Test Agent or PR Label Agent | Human intervention |
+| `needs-tests` | `#1d76db` (blue) | Tests need to run | Implementation Agent | Test Agent |
+| `needs-human-review` | `#d93f0b` (orange) | Auto-fix cycle exhausted, human needed | Code Review Agent | Human review |
+
+## PR State Transitions
+
+```
+[Implementation Agent creates PR]
+         |
+         | (adds needs-tests if code changes)
+         v
+    [needs-tests]
+         |
+         | (Test Agent runs)
+         |
+    +----+----+
+    |         |
+    v         v
+[tests pass] [tests fail]
+    |         |
+    |         v
+    |    [blocked] → Human fixes required
+    |
+    | (removes needs-tests)
+    v
+[PR Label Agent analyzes]
+    |
+    +------------------+------------------+
+    |                  |                  |
+    v                  v                  v
+[auto-merge]    [needs-review]       [blocked]
+    |                  |                  |
+    v                  v                  v
+[Auto merge]    [Human reviews]    [Human fixes]
+```
+
+## PR Revision Cycle
+
+When Code Review finds issues:
+
+1. Code Review Agent posts "## Issues Found"
+2. Auto-fix request posted: `@claude fix` (with cycle marker)
+3. Implementation Agent triggered in PR Fix Mode
+4. Reads PR description for original plan context
+5. Applies fixes and pushes to PR branch
+6. PR synchronize event triggers Code Review Agent again
+7. Repeat max 2 times
+8. If issues remain after 2 cycles: Apply `needs-human-review` label and notify PR author
+
+## Context Preservation
+
+**How context flows through the system:**
+
+```
+Issue #123 (approved plan in comments)
+     ↓
+Implementation Agent reads plan, implements, creates PR with plan in description
+     ↓
+PR #45 (has plan summary in description, "Closes #123" in body)
+     ↓
+Code Review Agent reads PR description, validates against plan
+     ↓
+If fixes needed → Implementation Agent reads PR description for plan context
+     ↓
+Cycle continues with plan accessible via PR description
+```
+
+**Plan context is preserved in PR description throughout the entire PR lifecycle - no context loss at any stage.**
