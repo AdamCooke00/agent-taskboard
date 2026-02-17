@@ -241,9 +241,20 @@ export async function listMessages(
 
   // Fetch label events and enrich bot messages with agent type
   const labelEvents = await listLabelEvents(octokit, owner, repo, issueNumber);
+  const humanPatterns = /^(@claude|<!-- auto-continue -->)/;
   for (const message of messages) {
+    if (message.type === "issue_body" || message.type === "pr_body") continue;
+
     if (message.author.isBot) {
+      // Already identified as bot (e.g., claude[bot]) — resolve agent type
       message.agentType = resolveAgentType(message.createdAt, labelEvents);
+    } else if (!humanPatterns.test(message.body.trim())) {
+      // Not a known human comment pattern — check if posted during agent phase
+      const agentType = resolveAgentType(message.createdAt, labelEvents);
+      if (agentType) {
+        message.author.isBot = true;
+        message.agentType = agentType;
+      }
     }
   }
 
