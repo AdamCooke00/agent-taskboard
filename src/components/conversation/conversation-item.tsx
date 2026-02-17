@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { GitPullRequest, CircleDot } from "lucide-react";
+import { GitPullRequest, CircleDot, GitMerge } from "lucide-react";
 import { cn, formatRelativeTime, truncate } from "@/lib/utils";
 import type { Conversation } from "@/lib/types";
 
@@ -18,8 +18,37 @@ const ATTENTION_STYLES = {
 };
 
 export function ConversationItem({ conversation }: ConversationItemProps) {
-  const { id, type, number, title, repo, updatedAt, body, author, attentionLevel, labels } =
+  const { id, type, number, title, repo, updatedAt, body, author, attentionLevel, labels, state } =
     conversation;
+
+  // Determine icon and styling based on type and state
+  let Icon = CircleDot;
+  let iconColor = "text-green-500";
+  let typeBadge = "Issue";
+
+  if (type === "pull_request") {
+    typeBadge = "PR";
+    if (state === "merged") {
+      Icon = GitMerge;
+      iconColor = "text-purple-500";
+    } else if (state === "closed") {
+      Icon = GitPullRequest;
+      iconColor = "text-red-500 opacity-60";
+    } else {
+      Icon = GitPullRequest;
+      iconColor = "text-purple-500";
+    }
+  } else {
+    // Issue
+    typeBadge = "Issue";
+    if (state === "closed") {
+      Icon = CircleDot;
+      iconColor = "text-red-500 opacity-60";
+    } else {
+      Icon = CircleDot;
+      iconColor = "text-green-500";
+    }
+  }
 
   return (
     <Link
@@ -31,11 +60,7 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
     >
       {/* Icon */}
       <div className="mt-0.5 shrink-0">
-        {type === "pull_request" ? (
-          <GitPullRequest className="h-5 w-5 text-purple-500" />
-        ) : (
-          <CircleDot className="h-5 w-5 text-green-500" />
-        )}
+        <Icon className={cn("h-5 w-5", iconColor)} />
       </div>
 
       {/* Content */}
@@ -48,7 +73,7 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
         </div>
 
         <p className="mt-0.5 text-xs text-muted-foreground">
-          {repo.fullName} #{number}
+          <span className="font-medium">{typeBadge}</span> · {repo.fullName} #{number}
         </p>
 
         {body && (
