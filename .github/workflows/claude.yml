@@ -309,26 +309,28 @@ jobs:
         continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
+          prompt: "Implement the approved plan for issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: >-
             --model claude-sonnet-4-5-20250929
             --max-turns 50
             --dangerously-skip-permissions
-            --allowedTools "Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh issue close:*),Bash(gh label create:*)"
+            --allowedTools "Bash(gh *),Bash(git *)"
             --append-system-prompt "CRITICAL WORKFLOW: You are running in CI with a turn limit. Follow this exact order: 1) Create a working branch and push it immediately. 2) Commit and push after EVERY meaningful change — do NOT batch commits until the end. 3) Create a PR early using gh pr create, even before work is complete, so progress is never lost. 4) Use exactly one label: --label auto-merge, --label needs-review, or --label blocked. Default to needs-review. 5) If triggered from an issue, include Closes #<issue-number> in the PR body. 6) NEVER stop without having committed and pushed your latest changes. 7) If you sense you are running low on turns, immediately commit, push, and ensure the PR exists."
 
       - name: Run Implementation Agent (Fallback)
         if: steps.mode.outputs.agent == 'implement' && (env.HAS_MAX_TOKEN != 'true' || steps.implement_max.outcome != 'success')
         uses: anthropics/claude-code-action@v1
         with:
+          prompt: "Implement the approved plan for issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: >-
             --model claude-sonnet-4-5-20250929
             --max-turns 50
             --dangerously-skip-permissions
-            --allowedTools "Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh issue close:*),Bash(gh label create:*)"
+            --allowedTools "Bash(gh *),Bash(git *)"
             --append-system-prompt "CRITICAL WORKFLOW: You are running in CI with a turn limit. Follow this exact order: 1) Create a working branch and push it immediately. 2) Commit and push after EVERY meaningful change — do NOT batch commits until the end. 3) Create a PR early using gh pr create, even before work is complete, so progress is never lost. 4) Use exactly one label: --label auto-merge, --label needs-review, or --label blocked. Default to needs-review. 5) If triggered from an issue, include Closes #<issue-number> in the PR body. 6) NEVER stop without having committed and pushed your latest changes. 7) If you sense you are running low on turns, immediately commit, push, and ensure the PR exists."
 
       # Auto-continue: if Claude hit the turn limit AND work is incomplete, post a continuation comment
