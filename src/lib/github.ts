@@ -68,7 +68,7 @@ export async function listConversations(
         type: isPR ? "pull_request" : "issue",
         number: issue.number,
         title: issue.title,
-        state: issue.state as "open" | "closed",
+        state: (isPR && issue.pull_request?.merged_at) ? "merged" : (issue.state as "open" | "closed"),
         labels,
         createdAt: issue.created_at,
         updatedAt: issue.updated_at,
