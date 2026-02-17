@@ -30,14 +30,31 @@ jobs:
           allowed_bots: "claude"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
-            Review this pull request. Use `gh pr diff` to read the changes,
-            then post your review using `gh pr review` with the --comment flag
-            and a markdown body. Focus on bugs, convention violations, and
-            missing tests. One sentence per issue with the fix. Skip praise.
+            Review this pull request and validate it against the approved plan.
 
-            Format your review body as follows:
-            - If you find actionable bugs or issues: start the body with "## Issues Found" as the first line, then list each issue.
-            - If the code looks clean: start the body with "## No Issues" as the first line, followed by a brief confirmation.
+            CRITICAL CONTEXT PRESERVATION:
+            1. First, read the PR description to get the approved implementation plan:
+               gh pr view ${{ github.event.pull_request.number }} --json body --jq '.body'
+
+            2. Validate that the code changes implement this plan correctly:
+               - Does the PR implement all planned features?
+               - Are there features NOT in the plan? (scope creep)
+               - Does the implementation approach match the plan?
+
+            3. Also check standard code quality:
+               - Bugs, convention violations, missing tests
+               - Security issues, performance concerns
+
+            4. Use `gh pr diff` to read the changes
+
+            5. Post your review using `gh pr review` with --comment flag
+
+            Format your review body:
+            - If issues found: start with "## Issues Found" then list each issue
+            - If code is clean: start with "## No Issues" then brief confirmation
+            - Always reference plan when validating features
+
+            One sentence per issue with the fix. Skip praise.
           claude_args: "--max-turns 5 --dangerously-skip-permissions"
 
       # Check if fallback is actually needed (avoid double-charging on max-turns)
@@ -62,14 +79,31 @@ jobs:
           allowed_bots: "claude"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
-            Review this pull request. Use `gh pr diff` to read the changes,
-            then post your review using `gh pr review` with the --comment flag
-            and a markdown body. Focus on bugs, convention violations, and
-            missing tests. One sentence per issue with the fix. Skip praise.
+            Review this pull request and validate it against the approved plan.
 
-            Format your review body as follows:
-            - If you find actionable bugs or issues: start the body with "## Issues Found" as the first line, then list each issue.
-            - If the code looks clean: start the body with "## No Issues" as the first line, followed by a brief confirmation.
+            CRITICAL CONTEXT PRESERVATION:
+            1. First, read the PR description to get the approved implementation plan:
+               gh pr view ${{ github.event.pull_request.number }} --json body --jq '.body'
+
+            2. Validate that the code changes implement this plan correctly:
+               - Does the PR implement all planned features?
+               - Are there features NOT in the plan? (scope creep)
+               - Does the implementation approach match the plan?
+
+            3. Also check standard code quality:
+               - Bugs, convention violations, missing tests
+               - Security issues, performance concerns
+
+            4. Use `gh pr diff` to read the changes
+
+            5. Post your review using `gh pr review` with --comment flag
+
+            Format your review body:
+            - If issues found: start with "## Issues Found" then list each issue
+            - If code is clean: start with "## No Issues" then brief confirmation
+            - Always reference plan when validating features
+
+            One sentence per issue with the fix. Skip praise.
           claude_args: "--max-turns 5 --dangerously-skip-permissions"
 
       # Request fixes for review findings
@@ -78,22 +112,48 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
-          # Count existing auto-fix-request markers to prevent infinite loops
-          MARKER_COUNT=$(gh pr view ${{ github.event.pull_request.number }} --json comments --jq '.comments[].body' | grep -c '<!-- review-fix-cycle -->' || echo "0")
+          PR_NUM=${{ github.event.pull_request.number }}
 
-          if [ "$MARKER_COUNT" -ge 2 ]; then
-            echo "Auto-fix cycle limit reached (2 iterations). Skipping fix request."
+          # Check if review found issues
+          REVIEW=$(gh pr view "$PR_NUM" --json reviews --jq '.reviews[-1].body')
+          if ! echo "$REVIEW" | grep -q "## Issues Found"; then
+            echo "No issues found in review - skipping auto-fix"
             exit 0
           fi
 
-          # Fetch the latest review body
-          REVIEW_BODY=$(gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews" \
-            --jq '[.[] | select(.state == "COMMENTED")] | sort_by(.submitted_at) | last | .body' || echo "")
+          # Count existing fix cycles
+          MARKER_COUNT=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUM/comments" \
+            --jq '.[].body' | grep -c '<!-- review-fix-cycle -->' || echo "0")
 
-          # Check if review found issues (case-insensitive check)
-          if echo "$REVIEW_BODY" | head -n 1 | grep -iq "## Issues Found"; then
-            echo "Review found issues. Posting auto-fix request..."
-            gh pr comment ${{ github.event.pull_request.number }} --body "<!-- review-fix-cycle --> @claude The automated code review found issues that need fixing. Read the review comments above, fix the identified bugs and issues, commit, and push."
-          else
-            echo "No issues found in review or review body empty. Skipping fix request."
+          if [ "$MARKER_COUNT" -ge 2 ]; then
+            echo "⚠️ Auto-fix cycle limit reached (2 iterations)"
+
+            # Post human notification
+            gh pr comment "$PR_NUM" --body "⚠️ **Auto-fix Cycle Limit Reached**
+
+          The automated review-fix cycle has completed 2 iterations but issues remain. This PR now requires human review and manual fixes.
+
+          **What happened:**
+          - Initial code review found issues
+          - Auto-fix attempt #1 completed
+          - Auto-fix attempt #2 completed
+          - Issues still remain after 2 fix attempts
+
+          **Next steps:**
+          1. Review the code review feedback above
+          2. Apply fixes manually or provide specific guidance to @claude
+          3. Push your changes to continue
+
+          cc: @${{ github.event.pull_request.user.login }}"
+
+            # Add label to indicate human intervention needed
+            gh pr edit "$PR_NUM" --add-label needs-human-review --remove-label auto-merge
+
+            exit 0
           fi
+
+          # Post auto-fix request
+          gh pr comment "$PR_NUM" --body "@claude Please fix the issues identified in the code review above.
+
+          <!-- review-fix-cycle -->
+          <!-- Cycle count: $((MARKER_COUNT + 1)) -->"

@@ -1,0 +1,121 @@
+name: Test Agent
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled]
+
+jobs:
+  test:
+    # Only run when needs-tests label is present
+    if: contains(github.event.pull_request.labels.*.name, 'needs-tests')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      HAS_MAX_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' && 'true' || 'false' }}
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      # Primary: Use Max subscription
+      - name: Run tests with Max subscription
+        id: max
+        if: env.HAS_MAX_TOKEN == 'true'
+        continue-on-error: true
+        uses: anthropics/claude-code-action@v1
+        with:
+          allowed_bots: "claude"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Run the test suite for this repository and report results.
+
+            1. Identify test framework (check package.json scripts, Makefile, etc.)
+            2. Run tests: `npm test` or appropriate command
+            3. Parse test output for failures
+            4. Report results:
+
+            **If all tests pass:**
+            ```bash
+            PR_NUM=${{ github.event.pull_request.number }}
+            gh pr comment $PR_NUM --body "✅ **Tests Passed**
+
+            All tests passed successfully.
+
+            [Test output summary]"
+
+            # Remove needs-tests label
+            gh pr edit $PR_NUM --remove-label needs-tests
+            ```
+
+            **If tests fail:**
+            ```bash
+            gh pr comment $PR_NUM --body "❌ **Tests Failed**
+
+            The following tests failed:
+            [List failures]
+
+            Please fix the failing tests before merging."
+
+            # Apply blocked label, remove auto-merge if present
+            gh pr edit $PR_NUM --remove-label needs-tests --remove-label auto-merge --add-label blocked
+            ```
+          claude_args: "--max-turns 15 --dangerously-skip-permissions"
+
+      # Check if fallback is actually needed (avoid double-charging on max-turns)
+      - name: Check if fallback needed
+        id: check_fallback
+        if: steps.max.outcome != 'success'
+        run: |
+          OUTPUT="/home/runner/work/_temp/claude-execution-output.json"
+          if [ -f "$OUTPUT" ] && grep -q "error_max_turns" "$OUTPUT" 2>/dev/null; then
+            echo "Max hit turn limit after doing work — skipping fallback"
+            echo "needed=false" >> $GITHUB_OUTPUT
+          else
+            echo "needed=true" >> $GITHUB_OUTPUT
+          fi
+
+      # Fallback: Use API key
+      - name: Run tests with API key (Fallback)
+        if: steps.max.outcome != 'success' && steps.check_fallback.outputs.needed != 'false'
+        uses: anthropics/claude-code-action@v1
+        with:
+          allowed_bots: "claude"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Run the test suite for this repository and report results.
+
+            1. Identify test framework (check package.json scripts, Makefile, etc.)
+            2. Run tests: `npm test` or appropriate command
+            3. Parse test output for failures
+            4. Report results:
+
+            **If all tests pass:**
+            ```bash
+            PR_NUM=${{ github.event.pull_request.number }}
+            gh pr comment $PR_NUM --body "✅ **Tests Passed**
+
+            All tests passed successfully.
+
+            [Test output summary]"
+
+            # Remove needs-tests label
+            gh pr edit $PR_NUM --remove-label needs-tests
+            ```
+
+            **If tests fail:**
+            ```bash
+            gh pr comment $PR_NUM --body "❌ **Tests Failed**
+
+            The following tests failed:
+            [List failures]
+
+            Please fix the failing tests before merging."
+
+            # Apply blocked label, remove auto-merge if present
+            gh pr edit $PR_NUM --remove-label needs-tests --remove-label auto-merge --add-label blocked
+            ```
+          claude_args: "--max-turns 15 --dangerously-skip-permissions"
