@@ -144,9 +144,55 @@ jobs:
           fetch-depth: 1
           token: ${{ secrets.PAT_TOKEN }}
 
+      # Verify the ORIGINAL human who initiated this chain has write access.
+      # github.actor is unreliable for labeled events (workflow's PAT becomes the actor).
+      # Instead, check the issue author or comment author.
+      - name: Verify requesting user has write access
+        id: auth
+        run: |
+          REQUESTING_USER=""
+
+          # For issue events, check the issue author (the human who started the chain)
+          if [ "${{ github.event_name }}" = "issues" ]; then
+            REQUESTING_USER="${{ github.event.issue.user.login }}"
+          fi
+
+          # For issue comments, check who wrote the comment
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            REQUESTING_USER="${{ github.event.comment.user.login }}"
+          fi
+
+          # For PR review comments, check who wrote the comment
+          if [ "${{ github.event_name }}" = "pull_request_review_comment" ]; then
+            REQUESTING_USER="${{ github.event.comment.user.login }}"
+          fi
+
+          # For PR reviews, check who submitted the review
+          if [ "${{ github.event_name }}" = "pull_request_review" ]; then
+            REQUESTING_USER="${{ github.event.review.user.login }}"
+          fi
+
+          if [ -z "$REQUESTING_USER" ]; then
+            echo "Could not determine requesting user — blocking"
+            echo "authorized=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          PERMISSION=$(gh api "repos/${{ github.repository }}/collaborators/$REQUESTING_USER/permission" --jq '.permission' 2>/dev/null || echo "none")
+
+          if [ "$PERMISSION" = "admin" ] || [ "$PERMISSION" = "write" ]; then
+            echo "authorized=true" >> $GITHUB_OUTPUT
+            echo "✅ User $REQUESTING_USER has $PERMISSION access — authorized"
+          else
+            echo "authorized=false" >> $GITHUB_OUTPUT
+            echo "❌ User $REQUESTING_USER has $PERMISSION access — NOT authorized, blocking workflow"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+
       # Initialize new issues with planning label
       - name: Initialize new issues with planning label
-        if: github.event_name == 'issues' && github.event.action == 'opened'
+        if: steps.auth.outputs.authorized == 'true' && github.event_name == 'issues' && github.event.action == 'opened'
         run: |
           ISSUE_NUM="${{ github.event.issue.number }}"
 
@@ -170,6 +216,7 @@ jobs:
 
       # Ensure labels exist in repository
       - name: Ensure labels exist
+        if: steps.auth.outputs.authorized == 'true'
         run: |
           gh label create "planning" --color "0052CC" --description "Task needs implementation plan" --force || true
           gh label create "plan-review" --color "FFA500" --description "Plan ready for critique" --force || true
@@ -181,6 +228,7 @@ jobs:
 
       # Detect agent mode based on labels (plan, review, or implement)
       - name: Detect agent mode
+        if: steps.auth.outputs.authorized == 'true'
         id: mode
         run: |
           # Skip agent execution on issues.opened - initialization only adds label
@@ -221,6 +269,7 @@ jobs:
 
       # Apply working label to indicate agent is actively working
       - name: Apply working label
+        if: steps.auth.outputs.authorized == 'true'
         run: |
           ISSUE_NUM=""
           if [ "${{ github.event_name }}" = "issues" ]; then
@@ -401,7 +450,7 @@ jobs:
       # Remove working label when workflow completes (always run, even on failure)
       - name: Remove working label
         if: |
-          always() && (
+          always() && steps.auth.outputs.authorized == 'true' && (
             github.event_name == 'issues' ||
             github.event_name == 'issue_comment'
           )
