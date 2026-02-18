@@ -1,4 +1,4 @@
-# Agent Taskboard
+# Agent Taskboard EDITED
 
 A mobile-first PWA for managing AI coding agents through a chat-like interface. GitHub issues are conversations, comments are messages, and new tasks are issue creation.
 
