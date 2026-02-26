@@ -192,7 +192,7 @@ function resolveAgentType(
 }
 
 function parseAgentTag(body: string): { agentType: string | null; cleanBody: string } {
-  const match = body.match(/^<!--\s*agent:([\w][\w-]*)\s*-->/);
+  const match = body.match(/^<!--\s*agent:(\w[\w-]*)\s*-->/);
   if (match) {
     return {
       agentType: match[1],
@@ -233,7 +233,7 @@ export async function listMessages(
       author: {
         login: issue.user?.login || "unknown",
         avatarUrl: issue.user?.avatar_url || "",
-        isBot: issue.user?.type === "Bot" || !!issueAgentType,
+        isBot: issue.user?.type === "Bot",
       },
       body: issueCleanBody,
       createdAt: issue.created_at,
@@ -304,9 +304,8 @@ export async function listMessages(
     // First, check for agent tag in comment body
     const { agentType: tagAgentType, cleanBody } = parseAgentTag(message.body);
     if (tagAgentType) {
-      // Tag found — strip tag from body and mark as bot
+      // Tag found — strip tag from body and set agent type
       message.body = cleanBody;
-      message.author.isBot = true;
       message.agentType = tagAgentType as AgentType;
       continue; // Skip label-event fallback
     }
