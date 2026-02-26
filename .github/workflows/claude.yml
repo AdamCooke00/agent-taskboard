@@ -64,11 +64,16 @@ jobs:
         3. Assign a confidence: GREEN (proceed), YELLOW (minor gaps — still proceed), RED (blocked)
         4. Decision:
            - GREEN or YELLOW:
-             - Run: gh issue comment $ISSUE_NUM --body "Spec check passed. Proceeding to planning."
+             - Run: gh issue comment $ISSUE_NUM --body $'<!-- agent:spec -->\nSpec check passed. Proceeding to planning.'
              - Run: gh issue edit $ISSUE_NUM --remove-label spec-check --remove-label needs-clarification --add-label planning
            - RED:
-             - Run: gh issue comment $ISSUE_NUM --body "This issue needs clarification before planning can begin. [your numbered questions] Once you have answered, mention @claude to continue."
+             - Run: gh issue comment $ISSUE_NUM --body $'<!-- agent:spec -->\nThis issue needs clarification before planning can begin. [your numbered questions] Once you have answered, mention @claude to continue.'
              - Run: gh issue edit $ISSUE_NUM --remove-label spec-check --add-label needs-clarification
+
+        # COMMENT IDENTITY TAG
+        Every comment you post via `gh issue comment` MUST start with this exact HTML comment as the very first line of the body:
+        <!-- agent:spec -->
+        This tag is invisible in rendered markdown but lets downstream systems identify which agent posted the comment.
 
         # CONSTRAINTS
         - Keep your response SHORT — no lengthy analysis, just the decision + questions if needed
@@ -114,6 +119,11 @@ jobs:
         - Humans may comment during your work
         - Add ✅ reaction: `gh api repos/<OWNER>/<REPO>/issues/comments/<COMMENT_ID>/reactions -f content='+1'`
         - Incorporate human feedback into your plan
+
+        # COMMENT IDENTITY TAG
+        Every comment you post via `gh issue comment` MUST start with this exact HTML comment as the very first line of the body:
+        <!-- agent:plan -->
+        This tag is invisible in rendered markdown but lets downstream systems identify which agent posted the comment.
 
         # CONSTRAINTS
         - Read-only: NO file edits, NO git operations, NO PR creation
@@ -161,21 +171,26 @@ jobs:
            CYCLES=$(echo "$EVENTS" | jq '[.[] | select(.event=="labeled" and .label.name=="plan-review")] | length')
            ```
         6. If CYCLES >= 3:
-           - Post: "Plan has been through 3 review cycles. Human decision required. [Summary]"
+           - Run: gh issue comment <NUM> --body $'<!-- agent:review -->\nPlan has been through 3 review cycles. Human decision required. [Summary]'
            - Execute: `gh issue edit <NUM> --remove-label plan-review --add-label needs-human-input`
            - STOP
         7. Decision:
            - If plan needs revision:
-             - Post detailed critique
+             - Run: gh issue comment <NUM> --body $'<!-- agent:review -->\nYour critique here.'
              - Execute: `gh issue edit <NUM> --remove-label plan-review --add-label planning`
            - If plan approved:
-             - Post: "Plan approved. Proceeding to implementation."
+             - Run: gh issue comment <NUM> --body $'<!-- agent:review -->\nPlan approved. Proceeding to implementation.'
              - Execute: `gh issue edit <NUM> --remove-label plan-review --add-label ready-to-implement`
 
         # HUMAN INTERACTION
         - Humans may comment during review
         - Add ✅ reaction to acknowledge: `gh api repos/<OWNER>/<REPO>/issues/comments/<COMMENT_ID>/reactions -f content='+1'`
         - Incorporate human guidance into review
+
+        # COMMENT IDENTITY TAG
+        Every comment you post via `gh issue comment` MUST start with this exact HTML comment as the very first line of the body:
+        <!-- agent:review -->
+        This tag is invisible in rendered markdown but lets downstream systems identify which agent posted the comment.
 
         # CONSTRAINTS
         - Read-only: NO file edits, NO git operations, NO PR creation

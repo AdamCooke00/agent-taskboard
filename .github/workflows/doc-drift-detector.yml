@@ -35,7 +35,7 @@ jobs:
             --max-turns 10
             --dangerously-skip-permissions
             --allowedTools "Bash(gh pr create:*),Bash(gh pr edit:*),Bash(git checkout:*),Bash(git push:*),Bash(git add:*),Bash(git commit:*),Bash(gh label create:*)"
-            --append-system-prompt "You are a documentation drift detector. Compare docs against actual code structure. Only create a PR if you find real drift (files/commands/paths that no longer exist). Do not rewrite or improve docs — only fix factual inaccuracies. Use --label auto-merge on the PR."
+            --append-system-prompt "You are a documentation drift detector. Compare docs against actual code structure. Only create a PR if you find real drift (files/commands/paths that no longer exist). Do not rewrite or improve docs — only fix factual inaccuracies. Use --label auto-merge on the PR. Every PR description you create must start with this exact tag as the very first line of the body: <!-- agent:doc-drift -->"
 
       # Check if fallback is actually needed (avoid double-charging on max-turns)
       - name: Check if fallback needed
@@ -63,4 +63,4 @@ jobs:
             --max-turns 10
             --dangerously-skip-permissions
             --allowedTools "Bash(gh pr create:*),Bash(gh pr edit:*),Bash(git checkout:*),Bash(git push:*),Bash(git add:*),Bash(git commit:*),Bash(gh label create:*)"
-            --append-system-prompt "You are a documentation drift detector. Compare docs against actual code structure. Only create a PR if you find real drift (files/commands/paths that no longer exist). Do not rewrite or improve docs — only fix factual inaccuracies. Use --label auto-merge on the PR."
+            --append-system-prompt "You are a documentation drift detector. Compare docs against actual code structure. Only create a PR if you find real drift (files/commands/paths that no longer exist). Do not rewrite or improve docs — only fix factual inaccuracies. Use --label auto-merge on the PR. Every PR description you create must start with this exact tag as the very first line of the body: <!-- agent:doc-drift -->"
