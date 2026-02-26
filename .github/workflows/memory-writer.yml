@@ -1,0 +1,119 @@
+name: Memory Writer
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  write-memory:
+    # Only run on merged PRs; skip auto-generated and framework PRs
+    if: |
+      github.event.pull_request.merged == true &&
+      !contains(toJson(github.event.pull_request.labels.*.name), 'template_sync') &&
+      !contains(toJson(github.event.pull_request.labels.*.name), 'daily-digest') &&
+      !contains(toJson(github.event.pull_request.labels.*.name), 'agent-health-report') &&
+      !contains(toJson(github.event.pull_request.labels.*.name), 'gardener-report') &&
+      !contains(toJson(github.event.pull_request.labels.*.name), 'memory-gardener')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    env:
+      HAS_MAX_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' && 'true' || 'false' }}
+      MEMORY_WRITER_PROMPT: |
+        # ROLE
+        You are the Memory Writer. You extract concrete, actionable learnings from merged pull requests and append them to the project knowledge base at docs/agent-learnings.md.
+
+        # WHAT TO EXTRACT
+        Only record entries that fit one of these categories:
+        - **environment**: CI/CD quirks, tool behavior, timing issues, runner-specific behavior
+        - **gotcha**: Bugs, anti-patterns, or edge cases discovered during implementation or review
+        - **architecture**: Non-obvious design decisions made, and why alternatives were rejected
+        - **testing**: Test behavior, coverage gaps, or testing approaches discovered to work well/poorly
+        - **pattern**: A recurring approach confirmed as the right way to do something in this codebase
+        - **decision**: A deliberate choice to use X over Y, with reasoning
+
+        DO NOT record:
+        - Things already in CLAUDE.md (conventions, code style, project structure)
+        - Things discoverable by reading the code itself (file structure, API signatures, variable names)
+        - Generic best practices not specific to this codebase
+        - Trivial PRs (documentation typos, formatting-only changes)
+        - Anything vague or not actionable
+
+        # YOUR PROCESS
+        1. Read PR details including review comments:
+           `gh pr view $PR_NUM --repo $GITHUB_REPOSITORY --comments`
+        2. Read which files changed:
+           `gh pr diff $PR_NUM --repo $GITHUB_REPOSITORY --name-only`
+        3. Read current learnings to avoid duplicates:
+           `cat docs/agent-learnings.md 2>/dev/null || echo 'File does not exist yet'`
+        4. Decide: are there 1-3 genuinely novel, specific learnings worth recording?
+           - If NO: exit without making any changes
+           - If YES: proceed to step 5
+        5. Append entries to docs/agent-learnings.md using this exact format:
+           ```
+           ### [YYYY-MM-DD] PR #N: Short description
+           **Category:** <category>
+           **Learning:** <specific, actionable learning in 1-2 sentences>
+           **Files:** <relevant/paths> (omit if not file-specific)
+           ```
+        6. Commit and push directly to the default branch:
+           ```bash
+           git config user.name "github-actions[bot]"
+           git config user.email "github-actions[bot]@users.noreply.github.com"
+           git pull --rebase origin main
+           git add docs/agent-learnings.md
+           git commit -m "memory: learnings from PR #$PR_NUM"
+           git push origin main
+           ```
+
+        # CONSTRAINTS
+        - Maximum 3 entries per PR (be selective — 0 is fine for routine PRs)
+        - Each entry must be specific enough to help a future agent avoid a mistake or make a better decision
+        - Never duplicate an entry already in the file (check first)
+        - Use today's date in YYYY-MM-DD format
+        - 15 turn limit — if you run out of turns without committing, that is fine (no partial writes)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.PAT_TOKEN }}
+
+      # Run Memory Writer (Haiku — cheap, runs on every merge)
+      - name: Run Memory Writer
+        id: memory_max
+        if: env.HAS_MAX_TOKEN == 'true'
+        continue-on-error: true
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+        with:
+          display_report: "false"
+          prompt: "Extract and record any novel learnings from merged PR #${{ github.event.pull_request.number }} in repository ${{ github.repository }}."
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.PAT_TOKEN }}
+          claude_args: >-
+            --model claude-haiku-4-5-20251001
+            --max-turns 15
+            --allowedTools "Read,Write,Bash(git *),Bash(gh pr *),Bash(cat *),Bash(echo *),Bash(date *)"
+            --append-system-prompt "${{ env.MEMORY_WRITER_PROMPT }}"
+
+      - name: Run Memory Writer (Fallback)
+        if: env.HAS_MAX_TOKEN != 'true' || steps.memory_max.outcome != 'success'
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+        with:
+          display_report: "false"
+          prompt: "Extract and record any novel learnings from merged PR #${{ github.event.pull_request.number }} in repository ${{ github.repository }}."
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.PAT_TOKEN }}
+          claude_args: >-
+            --model claude-haiku-4-5-20251001
+            --max-turns 15
+            --allowedTools "Read,Write,Bash(git *),Bash(gh pr *),Bash(cat *),Bash(echo *),Bash(date *)"
+            --append-system-prompt "${{ env.MEMORY_WRITER_PROMPT }}"

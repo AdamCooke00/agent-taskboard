@@ -17,7 +17,7 @@ jobs:
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
       (github.event_name == 'issues' && github.event.action != 'labeled' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude'))) ||
-      (github.event_name == 'issues' && github.event.action == 'labeled' && (github.event.label.name == 'planning' || github.event.label.name == 'plan-review' || github.event.label.name == 'ready-to-implement') && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      (github.event_name == 'issues' && github.event.action == 'labeled' && (github.event.label.name == 'planning' || github.event.label.name == 'plan-review' || github.event.label.name == 'ready-to-implement' || github.event.label.name == 'spec-check') && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -27,6 +27,53 @@ jobs:
       actions: read
     env:
       HAS_MAX_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' && 'true' || 'false' }}
+      SPEC_AGENT_PROMPT: |
+        # ROLE
+        You are the Spec Agent. You evaluate whether a GitHub issue is sufficiently specified before any planning begins. You are the first agent in the pipeline and act as a quality gate on the issue itself.
+
+        # LABEL STATE MACHINE
+        You are currently in "spec-check" or "needs-clarification" mode.
+
+        Next states:
+        - "planning" → Issue is well-specified, pass to Plan Agent
+        - "needs-clarification" → Issue needs more information from the human
+
+        # EVALUATION CRITERIA
+        An issue is WELL-SPECIFIED when it has:
+        1. A clear, concrete goal (what should be built/fixed/changed — not vague like "improve performance")
+        2. Enough context to understand the problem domain
+        3. Implied or explicit success criteria (how do we know it's done?)
+        4. No critical ambiguities that would force the Plan Agent to guess at intent
+
+        An issue NEEDS CLARIFICATION when:
+        - The goal is vague or could mean multiple different things
+        - The scope is entirely open-ended with no bounds
+        - There are multiple equally plausible interpretations of the requirement
+        - Critical decisions that only the human can answer are missing (e.g., "which approach do you prefer?")
+        - The issue references external context that is not included
+
+        # YOUR PROCESS
+        1. Read the issue title, body, and ALL existing comments:
+           `gh issue view $ISSUE_NUM --repo $GITHUB_REPOSITORY --comments`
+        2. Evaluate the issue against the criteria above
+        3. Assign a confidence: GREEN (proceed), YELLOW (minor gaps — still proceed), RED (blocked)
+        4. Decision:
+           - GREEN or YELLOW:
+             - Post: "✅ **Spec check passed.** This issue is clear enough to plan. Proceeding to planning."
+             - Execute: `gh issue edit $ISSUE_NUM --remove-label spec-check --remove-label needs-clarification --add-label planning`
+           - RED:
+             - Post your specific clarifying questions as a numbered list
+             - End with: "_Once you've answered the above, mention @claude to continue._"
+             - Execute: `gh issue edit $ISSUE_NUM --remove-label spec-check --add-label needs-clarification`
+
+        # CONSTRAINTS
+        - Keep your response SHORT — no lengthy analysis, just the decision + questions if needed
+        - Ask maximum 3–5 targeted questions (only what's truly blocking — not every possible edge case)
+        - Do NOT suggest solutions or architecture — that is the Plan Agent's job
+        - Do NOT mark an issue as RED just because it lacks technical detail — agents can research that
+        - Be permissive: when in doubt, pass it through (YELLOW → proceed)
+        - 15 turn limit
+
       PLAN_AGENT_PROMPT: |
         # ROLE
         You are the Plan Agent. You create detailed implementation plans before any code is written.
@@ -44,6 +91,8 @@ jobs:
         - Add reactions: Use `gh api repos/{owner}/{repo}/issues/comments/{comment_id}/reactions -f content='+1'`
 
         # YOUR PROCESS
+        0. Read accumulated project learnings for context (avoid known pitfalls):
+           Use the Read tool on `docs/agent-learnings.md` (skip this step if the file does not exist)
         1. Read the task description in issue body and all comments
         2. If humans have commented, acknowledge by adding ✅ reaction to their comments
         3. Search the web for relevant documentation, libraries, patterns
@@ -190,8 +239,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
 
-      # Initialize new issues with planning label
-      - name: Initialize new issues with planning label
+      # Initialize new issues with spec-check label (entry point for the pipeline)
+      - name: Initialize new issues with spec-check label
         if: steps.auth.outputs.authorized == 'true' && github.event_name == 'issues' && github.event.action == 'opened'
         run: |
           ISSUE_NUM="${{ github.event.issue.number }}"
@@ -205,8 +254,8 @@ jobs:
           # Check if issue mentions @claude
           if echo "$ISSUE_BODY" | grep -q "@claude" || echo "$ISSUE_TITLE" | grep -q "@claude"; then
             if [ "$LABEL_COUNT" -eq 0 ]; then
-              echo "New @claude issue detected - adding planning label"
-              gh issue edit "$ISSUE_NUM" --add-label planning
+              echo "New @claude issue detected - adding spec-check label"
+              gh issue edit "$ISSUE_NUM" --add-label spec-check
             else
               echo "Issue already has labels - skipping auto-label"
             fi
@@ -218,6 +267,8 @@ jobs:
       - name: Ensure labels exist
         if: steps.auth.outputs.authorized == 'true'
         run: |
+          gh label create "spec-check" --color "8B5CF6" --description "Spec Agent evaluating issue clarity" --force || true
+          gh label create "needs-clarification" --color "F59E0B" --description "Issue needs more detail before planning" --force || true
           gh label create "planning" --color "0052CC" --description "Task needs implementation plan" --force || true
           gh label create "plan-review" --color "FFA500" --description "Plan ready for critique" --force || true
           gh label create "ready-to-implement" --color "00FF00" --description "Plan approved, ready for implementation" --force || true
@@ -260,6 +311,9 @@ jobs:
           elif echo "$LABELS" | grep -q "planning"; then
             echo "agent=plan" >> $GITHUB_OUTPUT
             echo "Agent mode: plan (planning label found)"
+          elif echo "$LABELS" | grep -q "spec-check" || echo "$LABELS" | grep -q "needs-clarification"; then
+            echo "agent=spec" >> $GITHUB_OUTPUT
+            echo "Agent mode: spec (spec-check or needs-clarification label found)"
           else
             echo "agent=none" >> $GITHUB_OUTPUT
             echo "Agent mode: none (no workflow labels found)"
@@ -287,6 +341,45 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+
+      # Spec Agent: Evaluate issue clarity before planning (Sonnet, 15 turns, read-only)
+      - name: Run Spec Agent
+        id: spec_max
+        if: steps.mode.outputs.agent == 'spec' && env.HAS_MAX_TOKEN == 'true'
+        continue-on-error: true
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          ISSUE_NUM: ${{ github.event.issue.number }}
+        with:
+          display_report: "false"
+          prompt: "Evaluate the spec clarity of issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
+          allowed_bots: "claude"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.PAT_TOKEN }}
+          claude_args: >-
+            --model claude-sonnet-4-6
+            --max-turns 15
+            --allowedTools "Bash(gh issue *),Bash(gh api repos/*/issues/* *)"
+            --append-system-prompt "${{ env.SPEC_AGENT_PROMPT }}"
+
+      - name: Run Spec Agent (Fallback)
+        if: steps.mode.outputs.agent == 'spec' && (env.HAS_MAX_TOKEN != 'true' || steps.spec_max.outcome != 'success')
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          ISSUE_NUM: ${{ github.event.issue.number }}
+        with:
+          display_report: "false"
+          prompt: "Evaluate the spec clarity of issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
+          allowed_bots: "claude"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.PAT_TOKEN }}
+          claude_args: >-
+            --model claude-sonnet-4-6
+            --max-turns 15
+            --allowedTools "Bash(gh issue *),Bash(gh api repos/*/issues/* *)"
+            --append-system-prompt "${{ env.SPEC_AGENT_PROMPT }}"
 
       # Plan Agent: Create implementation plan (Opus, 50 turns, read-only)
       - name: Run Plan Agent
@@ -377,8 +470,8 @@ jobs:
             --model claude-sonnet-4-5-20250929
             --max-turns 50
             --dangerously-skip-permissions
-            --allowedTools "Bash(gh *),Bash(git *)"
-            --append-system-prompt "CRITICAL WORKFLOW: You are running in CI with a turn limit. Follow this exact order: 1) Read the approved plan from issue #${{ github.event.issue.number }} using 'gh issue view' to extract comments containing the implementation plan. 2) Create a working branch and push it immediately. 3) Implement the plan, committing and pushing after EVERY meaningful change — do NOT batch commits until the end. 4) Create a PR using 'gh pr create' with the plan included in the body under '## Implementation Plan' section. Include 'Closes #${{ github.event.issue.number }}' in the body. 5) After PR creation, check if code changes include logic files (not just docs/tests): if so, add needs-tests label using 'gh pr edit PR_NUM --add-label needs-tests'. 6) NEVER use risk labels (auto-merge/needs-review/blocked) — the PR Label Agent will apply those. 7) NEVER stop without having committed, pushed, and created the PR. 8) If you sense low turns remaining, immediately commit, push, and ensure the PR exists."
+            --allowedTools "Read,Glob,Grep,Bash(gh *),Bash(git *),Bash(cat *)"
+            --append-system-prompt "CRITICAL WORKFLOW: You are running in CI with a turn limit. Follow this exact order: 0) Read project learnings to avoid known pitfalls: use the Read tool on 'docs/agent-learnings.md' if it exists. 1) Read the approved plan from issue #${{ github.event.issue.number }} using 'gh issue view' to extract comments containing the implementation plan. 2) Create a working branch and push it immediately. 3) Implement the plan, committing and pushing after EVERY meaningful change — do NOT batch commits until the end. 4) Create a PR using 'gh pr create' with the plan included in the body under '## Implementation Plan' section. Include 'Closes #${{ github.event.issue.number }}' in the body. 5) After PR creation, check if code changes include logic files (not just docs/tests): if so, add needs-tests label using 'gh pr edit PR_NUM --add-label needs-tests'. 6) NEVER use risk labels (auto-merge/needs-review/blocked) — the PR Label Agent will apply those. 7) NEVER stop without having committed, pushed, and created the PR. 8) If you sense low turns remaining, immediately commit, push, and ensure the PR exists."
 
       - name: Run Implementation Agent (Fallback)
         if: steps.mode.outputs.agent == 'implement' && (env.HAS_MAX_TOKEN != 'true' || steps.implement_max.outcome != 'success')
@@ -392,8 +485,8 @@ jobs:
             --model claude-sonnet-4-5-20250929
             --max-turns 50
             --dangerously-skip-permissions
-            --allowedTools "Bash(gh *),Bash(git *)"
-            --append-system-prompt "CRITICAL WORKFLOW: You are running in CI with a turn limit. Follow this exact order: 1) Read the approved plan from issue #${{ github.event.issue.number }} using 'gh issue view' to extract comments containing the implementation plan. 2) Create a working branch and push it immediately. 3) Implement the plan, committing and pushing after EVERY meaningful change — do NOT batch commits until the end. 4) Create a PR using 'gh pr create' with the plan included in the body under '## Implementation Plan' section. Include 'Closes #${{ github.event.issue.number }}' in the body. 5) After PR creation, check if code changes include logic files (not just docs/tests): if so, add needs-tests label using 'gh pr edit PR_NUM --add-label needs-tests'. 6) NEVER use risk labels (auto-merge/needs-review/blocked) — the PR Label Agent will apply those. 7) NEVER stop without having committed, pushed, and created the PR. 8) If you sense low turns remaining, immediately commit, push, and ensure the PR exists."
+            --allowedTools "Read,Glob,Grep,Bash(gh *),Bash(git *),Bash(cat *)"
+            --append-system-prompt "CRITICAL WORKFLOW: You are running in CI with a turn limit. Follow this exact order: 0) Read project learnings to avoid known pitfalls: use the Read tool on 'docs/agent-learnings.md' if it exists. 1) Read the approved plan from issue #${{ github.event.issue.number }} using 'gh issue view' to extract comments containing the implementation plan. 2) Create a working branch and push it immediately. 3) Implement the plan, committing and pushing after EVERY meaningful change — do NOT batch commits until the end. 4) Create a PR using 'gh pr create' with the plan included in the body under '## Implementation Plan' section. Include 'Closes #${{ github.event.issue.number }}' in the body. 5) After PR creation, check if code changes include logic files (not just docs/tests): if so, add needs-tests label using 'gh pr edit PR_NUM --add-label needs-tests'. 6) NEVER use risk labels (auto-merge/needs-review/blocked) — the PR Label Agent will apply those. 7) NEVER stop without having committed, pushed, and created the PR. 8) If you sense low turns remaining, immediately commit, push, and ensure the PR exists."
 
       # Auto-continue: if Claude hit the turn limit AND work is incomplete, post a continuation comment
       - name: Auto-continue on turn exhaustion

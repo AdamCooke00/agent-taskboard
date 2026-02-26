@@ -12,6 +12,8 @@ on:
       - "Doc Drift Detector"
       - "PR Size Guardian"
       - "Stale Issue Gardener"
+      - "Memory Writer"
+      - "Memory Gardener"
     types: [completed]
 
 jobs:

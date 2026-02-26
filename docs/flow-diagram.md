@@ -35,27 +35,29 @@ This is a **GitHub Actions-based multi-agent automation framework** built entire
 
 ---
 
-## The 10 Workflows (Agents)
+## The 12 Workflows (Agents)
 
 ### Reactive Agents (Event-Driven)
 
 | # | Workflow | File | Trigger | Role |
 |---|---------|------|---------|------|
-| 1 | **Claude Code** | `claude.yml` | `@claude` mention in issues/PR comments/PR reviews; issue opened/assigned/labeled with `@claude` | Primary implementer — reads code, writes code, creates PRs |
+| 1 | **Claude Code** | `claude.yml` | `@claude` mention in issues/PR comments/PR reviews; issue opened/assigned/labeled with `@claude` | Four-agent pipeline — Spec → Plan → Review → Implement |
 | 2 | **Claude Code Review** | `claude-review.yml` | PR opened / synchronize / reopened | Code reviewer — posts review via `gh pr review` |
 | 3 | **Auto Merge** | `auto-merge.yml` | `workflow_run` completed (after Claude Code Review) | Merges PRs labeled `auto-merge` |
-| 4 | **CI Doctor** | `ci-doctor.yml` | `workflow_run` completed with `failure` (watches 9 specifically listed workflows: Claude Code, Claude Review, Auto Merge, PR Size Guardian, Daily Digest, Agent Health Report, Stale Issue Gardener, Doc Drift Detector, Template Sync) | Diagnoses failures, posts comments |
+| 4 | **CI Doctor** | `ci-doctor.yml` | `workflow_run` completed with `failure` (watches 11 workflows) | Diagnoses failures, posts comments |
 | 5 | **PR Size Guardian** | `pr-size-guardian.yml` | PR opened / synchronize | Warns if PR exceeds 400 lines changed |
+| 6 | **Memory Writer** | `memory-writer.yml` | PR closed + merged | Extracts learnings from merged PRs into `docs/agent-learnings.md` |
 
 ### Scheduled Agents (Cron)
 
 | # | Workflow | File | Schedule | Role |
 |---|---------|------|----------|------|
-| 6 | **Daily Digest** | `daily-digest.yml` | Daily, 8:00 UTC | Creates summary issue of last 24h activity |
-| 7 | **Agent Health Report** | `agent-health-report.yml` | Friday, 9:00 UTC | Weekly stats on agent effectiveness |
-| 8 | **Stale Issue Gardener** | `stale-issue-gardener.yml` | Monday, 9:00 UTC | Marks stale issues, closes abandoned, labels unlabeled |
-| 9 | **Doc Drift Detector** | `doc-drift-detector.yml` | Monday, 10:00 UTC | Compares docs vs code, opens fix PRs |
-| 10 | **Template Sync** | `template-sync.yml` | Monday, 0:00 UTC | Syncs workflow updates from template repo |
+| 7 | **Daily Digest** | `daily-digest.yml` | Daily, 8:00 UTC | Creates summary issue of last 24h activity |
+| 8 | **Agent Health Report** | `agent-health-report.yml` | Friday, 9:00 UTC | Weekly stats on agent effectiveness |
+| 9 | **Stale Issue Gardener** | `stale-issue-gardener.yml` | Monday, 9:00 UTC | Marks stale issues, closes abandoned, labels unlabeled |
+| 10 | **Doc Drift Detector** | `doc-drift-detector.yml` | Monday, 10:00 UTC | Compares docs vs code, opens fix PRs |
+| 11 | **Template Sync** | `template-sync.yml` | Monday, 0:00 UTC | Syncs workflow updates from template repo |
+| 12 | **Memory Gardener** | `memory-gardener.yml` | Sunday, 0:00 UTC | Prunes/consolidates `docs/agent-learnings.md` weekly |
 
 ---
 
@@ -65,31 +67,47 @@ Labels serve as **state markers** and **routing signals** between agents.
 
 | Label | Set By | Read By | Purpose |
 |-------|--------|---------|---------|
-| `claude-working` | Claude Code (Apply working label step) — only on `issues` and `issue_comment` events, NOT on PR review events | Humans | Indicates agent is actively processing an issue |
-| `planning` | Human (manually) | Claude Code (Detect planning mode step) | Switches agent to plan-only mode (Opus, 25 turns, no edit permissions) |
-| `auto-merge` | Claude Code (on PR creation via `gh pr create --label`) | Auto Merge workflow | PR is safe to merge without human review |
-| `needs-review` | Claude Code (on PR creation) | Humans | PR requires human review before merge |
-| `blocked` | Claude Code (on PR creation) | Humans | PR cannot proceed without human input |
+| `spec-check` | Framework (auto on new `@claude` issues) | Spec Agent | Entry point — Spec Agent evaluates issue clarity |
+| `needs-clarification` | Spec Agent | Human | Issue blocked pending human answers; re-triggers Spec Agent on `@claude` comment |
+| `planning` | Spec Agent (on pass) | Plan Agent | Plan Agent creates implementation plan |
+| `plan-review` | Plan Agent | Review Agent | Review Agent critiques plan |
+| `ready-to-implement` | Review Agent | Implementation Agent | Implementation Agent executes approved plan |
+| `needs-human-input` | Review Agent (after 3 cycles) | Human | Escalated — human decision required |
+| `claude-working` | Claude Code (Apply working label step) — only on `issues` and `issue_comment` events | Humans | Indicates agent is actively processing an issue |
+| `auto-merge` | PR Label Agent | Auto Merge workflow | PR is safe to merge without human review |
+| `needs-review` | PR Label Agent | Humans | PR requires human review before merge |
+| `blocked` | PR Label Agent or Test Agent | Humans | PR cannot proceed without human input |
+| `needs-tests` | Implementation Agent | Test Agent | Triggers test run after implementation |
 | `stale` | Stale Issue Gardener | Stale Issue Gardener (on next weekly run) | Issue has 30+ days of inactivity; will close at 60 days |
 | `daily-digest` | Daily Digest | Stale Issue Gardener (skip list) | Marks digest issues to exclude from gardening |
 | `agent-health-report` | Agent Health Report | Stale Issue Gardener (skip list) | Marks health reports to exclude from gardening |
 | `gardener-report` | Stale Issue Gardener | Stale Issue Gardener (skip list) | Marks gardener reports to exclude from gardening |
+| `memory-gardener` | Memory Gardener | PR Label Agent | Marks memory gardener PRs |
 | `template_sync` | Template Sync | PR Size Guardian (skip check) | Marks template sync PRs; skips size check |
 | `bug`, `feature`, `documentation`, `question` | Stale Issue Gardener | Humans | Auto-applied to unlabeled issues based on content analysis |
 
 ### Label State Transition Rules
 
 ```
-No labels → claude-working     (when Claude Code starts processing on issue events)
-claude-working → (removed)      (when Claude Code finishes, success or failure)
-No labels → planning            (human adds manually to request plan-first)
-planning → (removed)            (automatically when workflow detects approval keywords like "approve", "implement", "proceed" in comment, OR manually by human)
-PR created → auto-merge         (Claude assesses risk as low)
-PR created → needs-review       (Claude assesses risk as moderate/high, or uncertain)
-PR created → blocked            (Claude cannot proceed without human input)
-No labels → stale               (30+ days inactive, set by Gardener)
-stale → (issue closed)          (60+ days inactive, closed by Gardener)
-No labels → bug/feature/etc.    (Gardener auto-labels based on content)
+Issue @claude opened → spec-check           (Framework auto-adds on new issues)
+spec-check → planning                       (Spec Agent: issue is clear — GREEN/YELLOW)
+spec-check → needs-clarification            (Spec Agent: issue is vague — RED)
+needs-clarification → spec-check            (Human responds with @claude)
+planning → plan-review                      (Plan Agent: plan posted)
+plan-review → planning                      (Review Agent: plan needs revision)
+plan-review → ready-to-implement            (Review Agent: plan approved)
+plan-review → needs-human-input             (Review Agent: 3 cycles exhausted)
+ready-to-implement → (removed)              (Framework cleanup after implementation)
+No labels → claude-working                  (when Claude Code starts processing on issue events)
+claude-working → (removed)                  (when Claude Code finishes, success or failure)
+PR created → auto-merge                     (PR Label Agent: low risk)
+PR created → needs-review                   (PR Label Agent: moderate/high risk)
+PR created → blocked                        (PR Label Agent: missing plan or security concern)
+needs-tests → (removed)                     (Test Agent: tests pass)
+needs-tests → blocked                       (Test Agent: tests fail)
+No labels → stale                           (30+ days inactive, set by Stale Gardener)
+stale → (issue closed)                      (60+ days inactive, closed by Stale Gardener)
+No labels → bug/feature/etc.                (Stale Gardener auto-labels based on content)
 ```
 
 ---
