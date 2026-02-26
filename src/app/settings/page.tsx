@@ -4,7 +4,18 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "@/hooks/use-session";
 import { useRepos } from "@/hooks/use-repos";
-import { ArrowLeft, LogOut, Check, Sun, Moon, Monitor } from "lucide-react";
+import { ArrowLeft, LogOut, Check, Sun, Moon, Monitor, Bell, BellOff } from "lucide-react";
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -13,10 +24,56 @@ export default function SettingsPage() {
   const [tracked, setTracked] = useState<string[]>([]);
   const [theme, setTheme] = useState<"system" | "light" | "dark">("system");
   const [saving, setSaving] = useState(false);
+  const [notifState, setNotifState] = useState<"unsupported" | "denied" | "subscribed" | "unsubscribed">("unsubscribed");
+  const [notifLoading, setNotifLoading] = useState(false);
 
   useEffect(() => {
     setTracked(sessionRepos);
   }, [sessionRepos]);
+
+  useEffect(() => {
+    if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+      setNotifState("unsupported");
+      return;
+    }
+    if (Notification.permission === "denied") {
+      setNotifState("denied");
+      return;
+    }
+    navigator.serviceWorker.ready.then((reg) => {
+      reg.pushManager.getSubscription().then((sub) => {
+        setNotifState(sub ? "subscribed" : "unsubscribed");
+      });
+    });
+  }, []);
+
+  const enableNotifications = async () => {
+    setNotifLoading(true);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setNotifState("denied");
+        return;
+      }
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(
+          process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
+        ) as unknown as BufferSource,
+      });
+      await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sub),
+      });
+      setNotifState("subscribed");
+    } catch (err) {
+      console.error("Failed to enable notifications:", err);
+    } finally {
+      setNotifLoading(false);
+    }
+  };
 
   useEffect(() => {
     // Load theme from localStorage
@@ -141,6 +198,55 @@ export default function SettingsPage() {
               <Monitor className="h-6 w-6" />
               <span className="text-sm font-medium">System</span>
             </button>
+          </div>
+        </section>
+
+        {/* Notifications */}
+        <section>
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Notifications
+          </h2>
+          <div className="rounded-xl border p-4">
+            {notifState === "unsupported" && (
+              <p className="text-sm text-muted-foreground">
+                Push notifications are not supported on this device or browser.
+                On iPhone, install the app to your home screen first.
+              </p>
+            )}
+            {notifState === "denied" && (
+              <p className="text-sm text-muted-foreground">
+                Notifications are blocked. Enable them in your browser or phone
+                settings, then reload this page.
+              </p>
+            )}
+            {notifState === "subscribed" && (
+              <div className="flex items-center gap-3">
+                <Bell className="h-5 w-5 text-green-500" />
+                <div>
+                  <p className="font-medium">Notifications enabled</p>
+                  <p className="text-sm text-muted-foreground">
+                    You&apos;ll be notified when agents need input or finish work.
+                  </p>
+                </div>
+              </div>
+            )}
+            {notifState === "unsubscribed" && (
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <BellOff className="h-5 w-5 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    Notifications are off
+                  </p>
+                </div>
+                <button
+                  onClick={enableNotifications}
+                  disabled={notifLoading}
+                  className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+                >
+                  {notifLoading ? "Enabling..." : "Enable"}
+                </button>
+              </div>
+            )}
           </div>
         </section>
 
