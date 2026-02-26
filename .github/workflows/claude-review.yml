@@ -125,7 +125,7 @@ jobs:
 
           # Count existing fix cycles
           MARKER_COUNT=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUM/comments" \
-            --jq '.[].body' | grep -c '<!-- review-fix-cycle -->' || echo "0")
+            --jq '.[].body' | grep -c '<!-- review-fix-cycle -->' || true)
 
           if [ "$MARKER_COUNT" -ge 2 ]; then
             echo "⚠️ Auto-fix cycle limit reached (2 iterations)"
