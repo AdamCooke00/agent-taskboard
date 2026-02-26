@@ -36,8 +36,10 @@ export async function POST(req: NextRequest) {
 async function handleIssueComment(payload: any) {
   const { issue, comment, repository } = payload;
   const isBot = comment.user?.type === "Bot";
+  // Also catch agents posting as a user account (via PAT_TOKEN instead of GitHub App)
+  const looksLikeAgent = /\bclaud[ei]\b/i.test(comment.user?.login || "");
 
-  if (isBot && containsQuestion(comment.body)) {
+  if ((isBot || looksLikeAgent) && containsQuestion(comment.body)) {
     const [owner, repo] = repository.full_name.split("/");
     await sendPushNotification({
       title: "Agent needs input",
