@@ -6,7 +6,9 @@ This document defines all labels used in the multi-agent planning workflow and t
 
 | Label | Color | Description | Set By | Read By | Triggers |
 |-------|-------|-------------|--------|---------|----------|
-| `planning` | `#0052CC` (blue) | Task needs implementation plan | Framework (auto on new issues) | Plan Agent | Plan Agent execution |
+| `spec-check` | `#8B5CF6` (purple) | Spec Agent evaluating issue clarity | Framework (auto on new issues) | Spec Agent | Spec Agent execution |
+| `needs-clarification` | `#F59E0B` (amber) | Issue needs more detail before planning | Spec Agent | Human | Human must respond before pipeline continues |
+| `planning` | `#0052CC` (blue) | Task needs implementation plan | Spec Agent (on pass) | Plan Agent | Plan Agent execution |
 | `plan-review` | `#FFA500` (orange) | Plan ready for critique | Plan Agent | Review Agent | Review Agent execution |
 | `ready-to-implement` | `#00FF00` (green) | Plan approved, ready for implementation | Review Agent | Implementation Agent | Implementation Agent execution |
 | `needs-human-input` | `#FF0000` (red) | Agents need human decision | Review Agent (after 3 cycles) | Human | Human review |
@@ -19,7 +21,27 @@ This document defines all labels used in the multi-agent planning workflow and t
          |
          | (Framework auto-adds)
          v
-    [planning]
+   [spec-check]
+         |
+         | (Spec Agent evaluates issue clarity)
+         |
+         +-----------------------+
+         |                       |
+         v                       v
+   [GREEN/YELLOW]           [RED — vague]
+         |                       |
+         | (Spec Agent:          | (Spec Agent: posts questions,
+         |  removes spec-check,  |  removes spec-check,
+         |  adds planning)       |  adds needs-clarification)
+         |                       |
+         v                       v
+    [planning]         [needs-clarification]
+         |                       |
+         |                       | (Human responds with @claude)
+         |                       |
+         |                       v
+         |                  [spec-check]
+         |                  (re-evaluates with new info)
          |
          | (Plan Agent reads codebase, searches web, drafts plan)
          |
@@ -55,6 +77,17 @@ This document defines all labels used in the multi-agent planning workflow and t
 ```
 
 ## Agent Permissions
+
+### Spec Agent
+**Can execute:**
+- `gh issue view <NUM> --comments`
+- `gh issue edit <NUM> --add-label <LABEL>`
+- `gh issue edit <NUM> --remove-label <LABEL>`
+
+**Label transitions:**
+- Removes: `spec-check`
+- Adds: `planning` (issue is clear) OR `needs-clarification` (issue needs more detail)
+- When re-triggered after human responds: removes `needs-clarification`, adds `planning`
 
 ### Plan Agent
 **Can execute:**
@@ -143,12 +176,14 @@ gh issue view <ISSUE_NUM> --json labels --jq '[.labels[].name] | join(",")'
 
 The framework watches for:
 
-1. **Issue opened** with `@claude` → Auto-adds `planning` label → Triggers Plan Agent
-2. **Issue labeled** with `planning` and `@claude` → Triggers Plan Agent
-3. **Comment created** on issue with `plan-review` label → Triggers Review Agent
-4. **Issue labeled** with `plan-review` → Triggers Review Agent
-5. **Issue labeled** with `ready-to-implement` → Triggers Implementation Agent
-6. **Comment created** on issue with `ready-to-implement` label → Triggers Implementation Agent
+1. **Issue opened** with `@claude` → Auto-adds `spec-check` label → Triggers Spec Agent
+2. **Issue labeled** with `spec-check` and `@claude` → Triggers Spec Agent
+3. **Comment created** on issue with `needs-clarification` label and `@claude` → Re-triggers Spec Agent
+4. **Issue labeled** with `planning` and `@claude` → Triggers Plan Agent
+5. **Comment created** on issue with `plan-review` label → Triggers Review Agent
+6. **Issue labeled** with `plan-review` → Triggers Review Agent
+7. **Issue labeled** with `ready-to-implement` → Triggers Implementation Agent
+8. **Comment created** on issue with `ready-to-implement` label → Triggers Implementation Agent
 
 ## Safety Mechanisms
 
