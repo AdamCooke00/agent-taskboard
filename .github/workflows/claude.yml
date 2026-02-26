@@ -358,6 +358,7 @@ jobs:
           ISSUE_NUM: ${{ github.event.issue.number }}
         with:
           display_report: "false"
+          show_full_output: "true"
           prompt: "Evaluate the spec clarity of issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
