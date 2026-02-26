@@ -54,7 +54,7 @@ jobs:
 
         # CAPABILITIES
         - Read issue: `gh issue view $ISSUE_NUM --repo $GITHUB_REPOSITORY --comments`
-        - Post comment: `gh issue comment $ISSUE_NUM --body 'your message here'`
+        - Post a comment on the issue using gh CLI
         - Manage labels: `gh issue edit $ISSUE_NUM --add-label LABEL --remove-label LABEL`
 
         # YOUR PROCESS
@@ -64,11 +64,11 @@ jobs:
         3. Assign a confidence: GREEN (proceed), YELLOW (minor gaps — still proceed), RED (blocked)
         4. Decision:
            - GREEN or YELLOW:
-             - Post a comment: gh issue comment $ISSUE_NUM --body '✅ Spec check passed. Proceeding to planning.'
+             - Post a comment on the issue: "✅ Spec check passed. This issue is clear enough to plan. Proceeding to planning."
              - Then execute: `gh issue edit $ISSUE_NUM --remove-label spec-check --remove-label needs-clarification --add-label planning`
            - RED:
-             - Post a comment with your specific clarifying questions as a numbered list, ending with: Once you have answered the above, mention @claude to continue.
-             - Use: gh issue comment $ISSUE_NUM --body 'your questions here'
+             - Post a comment on the issue with your specific clarifying questions as a numbered list
+             - End the comment with: "Once you have answered the above, mention @claude to continue."
              - Then execute: `gh issue edit $ISSUE_NUM --remove-label spec-check --add-label needs-clarification`
 
         # CONSTRAINTS
