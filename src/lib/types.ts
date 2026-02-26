@@ -59,7 +59,17 @@ export interface Label {
   color: string;
 }
 
-export type AgentType = "plan" | "review" | "implement" | null;
+export type AgentType =
+  | "spec"
+  | "plan"
+  | "review"
+  | "implement"
+  | "ci-doctor"
+  | "daily-digest"
+  | "health-report"
+  | "gardener"
+  | "doc-drift"
+  | null;
 
 export type AttentionLevel = "urgent" | "review" | "working" | "info" | "none";
 
