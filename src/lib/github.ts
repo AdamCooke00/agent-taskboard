@@ -24,6 +24,95 @@ export async function listUserRepos(token: string) {
   }));
 }
 
+export async function createRepoFromTemplate(
+  token: string,
+  owner: string,
+  name: string,
+  description?: string
+): Promise<{ owner: string; name: string; fullName: string; htmlUrl: string }> {
+  const octokit = createOctokit(token);
+  const { data } = await octokit.repos.createUsingTemplate({
+    template_owner: "AdamCooke00",
+    template_repo: "automated-developer-framework",
+    owner,
+    name,
+    description,
+    private: true,
+  });
+  return {
+    owner: data.owner.login,
+    name: data.name,
+    fullName: data.full_name,
+    htmlUrl: data.html_url,
+  };
+}
+
+export async function waitForBranch(
+  token: string,
+  owner: string,
+  repo: string,
+  branch: string,
+  maxAttempts = 5,
+  intervalMs = 1500
+): Promise<void> {
+  const octokit = createOctokit(token);
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      await octokit.repos.getBranch({ owner, repo, branch });
+      return; // Branch exists
+    } catch (err: unknown) {
+      if (
+        err &&
+        typeof err === "object" &&
+        "status" in err &&
+        err.status === 404 &&
+        i < maxAttempts - 1
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+        continue;
+      }
+      if (i === maxAttempts - 1) {
+        throw new Error(
+          `Branch '${branch}' not available after ${(maxAttempts * intervalMs) / 1000}s`
+        );
+      }
+      throw err;
+    }
+  }
+}
+
+export async function applyRepoSecurity(
+  token: string,
+  owner: string,
+  repo: string
+): Promise<void> {
+  const octokit = createOctokit(token);
+
+  // 1. Branch protection on main: no force pushes, no deletions, no required reviews
+  await octokit.repos.updateBranchProtection({
+    owner,
+    repo,
+    branch: "main",
+    required_status_checks: null,
+    enforce_admins: null,
+    required_pull_request_reviews: null,
+    restrictions: null,
+    allow_force_pushes: false,
+    allow_deletions: false,
+  });
+
+  // 2. Interaction limits: collaborators_only for 6 months
+  // This restricts issue creation, comments, AND PR creation to collaborators only.
+  // Note: this is temporary (6 months max) and will expire. GitHub does not offer
+  // a permanent interaction limit via the API.
+  await octokit.request("PUT /repos/{owner}/{repo}/interaction-limits", {
+    owner,
+    repo,
+    limit: "collaborators_only",
+    expiry: "six_months",
+  });
+}
+
 // --- Webhook Management ---
 
 export async function ensureRepoWebhook(
