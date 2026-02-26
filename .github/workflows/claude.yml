@@ -377,6 +377,7 @@ jobs:
           ISSUE_NUM: ${{ github.event.issue.number }}
         with:
           display_report: "false"
+          show_full_output: "true"
           prompt: "Evaluate the spec clarity of issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -397,6 +398,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
           display_report: "false"
+          show_full_output: "true"
           prompt: "Create an implementation plan for issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -414,6 +416,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
           display_report: "false"
+          show_full_output: "true"
           prompt: "Create an implementation plan for issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -434,6 +437,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
           display_report: "false"
+          show_full_output: "true"
           prompt: "Review the plan for issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -451,6 +455,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
           display_report: "false"
+          show_full_output: "true"
           prompt: "Review the plan for issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
