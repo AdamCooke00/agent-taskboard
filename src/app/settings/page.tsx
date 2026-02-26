@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "@/hooks/use-session";
 import { useRepos } from "@/hooks/use-repos";
-import { ArrowLeft, LogOut, Check, Sun, Moon, Monitor, Bell, BellOff } from "lucide-react";
+import { ArrowLeft, LogOut, Check, Sun, Moon, Monitor, Bell, BellOff, Plus } from "lucide-react";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -248,6 +248,25 @@ export default function SettingsPage() {
               </div>
             )}
           </div>
+        </section>
+
+        {/* Repository Setup */}
+        <section>
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Repository Setup
+          </h2>
+          <button
+            onClick={() => router.push("/new-repo")}
+            className="flex w-full items-center gap-3 rounded-xl border p-4 text-left transition-colors hover:bg-accent"
+          >
+            <Plus className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <div>
+              <p className="font-medium">Create New Repository</p>
+              <p className="text-sm text-muted-foreground">
+                Spin up a new project from the framework template.
+              </p>
+            </div>
+          </button>
         </section>
 
         {/* Tracked Repos */}
