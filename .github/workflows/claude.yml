@@ -53,23 +53,22 @@ jobs:
         - The issue references external context that is not included
 
         # CAPABILITIES
-        - Read issue: `gh issue view $ISSUE_NUM --repo $GITHUB_REPOSITORY --comments`
-        - Post a comment on the issue using gh CLI
-        - Manage labels: `gh issue edit $ISSUE_NUM --add-label LABEL --remove-label LABEL`
+        - Read issue:    gh issue view $ISSUE_NUM --comments
+        - Post comment:  gh issue comment $ISSUE_NUM --body "your message"
+        - Manage labels: gh issue edit $ISSUE_NUM --add-label LABEL --remove-label LABEL
 
         # YOUR PROCESS
         1. Read the issue title, body, and ALL existing comments:
-           `gh issue view $ISSUE_NUM --repo $GITHUB_REPOSITORY --comments`
+           gh issue view $ISSUE_NUM --comments
         2. Evaluate the issue against the criteria above
         3. Assign a confidence: GREEN (proceed), YELLOW (minor gaps — still proceed), RED (blocked)
         4. Decision:
            - GREEN or YELLOW:
-             - Post a comment on the issue: "✅ Spec check passed. This issue is clear enough to plan. Proceeding to planning."
-             - Then execute: `gh issue edit $ISSUE_NUM --remove-label spec-check --remove-label needs-clarification --add-label planning`
+             - Run: gh issue comment $ISSUE_NUM --body "Spec check passed. Proceeding to planning."
+             - Run: gh issue edit $ISSUE_NUM --remove-label spec-check --remove-label needs-clarification --add-label planning
            - RED:
-             - Post a comment on the issue with your specific clarifying questions as a numbered list
-             - End the comment with: "Once you have answered the above, mention @claude to continue."
-             - Then execute: `gh issue edit $ISSUE_NUM --remove-label spec-check --add-label needs-clarification`
+             - Run: gh issue comment $ISSUE_NUM --body "This issue needs clarification before planning can begin. [your numbered questions] Once you have answered, mention @claude to continue."
+             - Run: gh issue edit $ISSUE_NUM --remove-label spec-check --add-label needs-clarification
 
         # CONSTRAINTS
         - Keep your response SHORT — no lengthy analysis, just the decision + questions if needed
@@ -358,7 +357,6 @@ jobs:
           ISSUE_NUM: ${{ github.event.issue.number }}
         with:
           display_report: "false"
-          show_full_output: "true"
           prompt: "Evaluate the spec clarity of issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -366,7 +364,7 @@ jobs:
           claude_args: >-
             --model claude-sonnet-4-6
             --max-turns 15
-            --allowedTools "Bash(gh issue *),Bash(gh api repos/*/issues/* *)"
+            --allowedTools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*)"
             --append-system-prompt "${{ env.SPEC_AGENT_PROMPT }}"
 
       - name: Run Spec Agent (Fallback)
@@ -377,7 +375,6 @@ jobs:
           ISSUE_NUM: ${{ github.event.issue.number }}
         with:
           display_report: "false"
-          show_full_output: "true"
           prompt: "Evaluate the spec clarity of issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -385,7 +382,7 @@ jobs:
           claude_args: >-
             --model claude-sonnet-4-6
             --max-turns 15
-            --allowedTools "Bash(gh issue *),Bash(gh api repos/*/issues/* *)"
+            --allowedTools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*)"
             --append-system-prompt "${{ env.SPEC_AGENT_PROMPT }}"
 
       # Plan Agent: Create implementation plan (Opus, 50 turns, read-only)
@@ -398,7 +395,6 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
           display_report: "false"
-          show_full_output: "true"
           prompt: "Create an implementation plan for issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -406,7 +402,7 @@ jobs:
           claude_args: >-
             --model claude-opus-4-6
             --max-turns 50
-            --allowedTools "Read,Glob,Grep,WebSearch,Bash(gh issue *),Bash(gh api repos/*/issues/* *)"
+            --allowedTools "Read,Glob,Grep,WebSearch,Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh api repos/*/issues/comments/*/reactions:*)"
             --append-system-prompt "${{ env.PLAN_AGENT_PROMPT }}"
 
       - name: Run Plan Agent (Fallback)
@@ -416,7 +412,6 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
           display_report: "false"
-          show_full_output: "true"
           prompt: "Create an implementation plan for issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -424,7 +419,7 @@ jobs:
           claude_args: >-
             --model claude-opus-4-6
             --max-turns 50
-            --allowedTools "Read,Glob,Grep,WebSearch,Bash(gh issue *),Bash(gh api repos/*/issues/* *)"
+            --allowedTools "Read,Glob,Grep,WebSearch,Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh api repos/*/issues/comments/*/reactions:*)"
             --append-system-prompt "${{ env.PLAN_AGENT_PROMPT }}"
 
       # Review Agent: Critique plan (Opus, 50 turns, read-only)
@@ -437,7 +432,6 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
           display_report: "false"
-          show_full_output: "true"
           prompt: "Review the plan for issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -445,7 +439,7 @@ jobs:
           claude_args: >-
             --model claude-opus-4-6
             --max-turns 50
-            --allowedTools "Read,Glob,Grep,WebSearch,Bash(gh issue *),Bash(gh api repos/*/issues/* *)"
+            --allowedTools "Read,Glob,Grep,WebSearch,Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh api repos/*/issues/events:*),Bash(gh api repos/*/issues/comments/*/reactions:*)"
             --append-system-prompt "${{ env.REVIEW_AGENT_PROMPT }}"
 
       - name: Run Review Agent (Fallback)
@@ -455,7 +449,6 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
           display_report: "false"
-          show_full_output: "true"
           prompt: "Review the plan for issue #${{ github.event.issue.number }} in repository ${{ github.repository }}."
           allowed_bots: "claude"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -463,7 +456,7 @@ jobs:
           claude_args: >-
             --model claude-opus-4-6
             --max-turns 50
-            --allowedTools "Read,Glob,Grep,WebSearch,Bash(gh issue *),Bash(gh api repos/*/issues/* *)"
+            --allowedTools "Read,Glob,Grep,WebSearch,Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh api repos/*/issues/events:*),Bash(gh api repos/*/issues/comments/*/reactions:*)"
             --append-system-prompt "${{ env.REVIEW_AGENT_PROMPT }}"
 
       # Implementation Agent: Execute approved plan (Sonnet, 50 turns)
