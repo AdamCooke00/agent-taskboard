@@ -9,8 +9,7 @@ export async function POST(req: NextRequest) {
   }
 
   const subscription = await req.json();
-  const userId = String(session.githubUser.id);
-  savePushSubscription(userId, subscription);
+  await savePushSubscription(subscription);
 
   return NextResponse.json({ ok: true });
 }
