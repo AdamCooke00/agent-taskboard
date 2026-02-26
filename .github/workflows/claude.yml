@@ -239,6 +239,20 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
 
+      # Ensure labels exist in repository (must run before initialization step)
+      - name: Ensure labels exist
+        if: steps.auth.outputs.authorized == 'true'
+        run: |
+          gh label create "spec-check" --color "8B5CF6" --description "Spec Agent evaluating issue clarity" --force || true
+          gh label create "needs-clarification" --color "F59E0B" --description "Issue needs more detail before planning" --force || true
+          gh label create "planning" --color "0052CC" --description "Task needs implementation plan" --force || true
+          gh label create "plan-review" --color "FFA500" --description "Plan ready for critique" --force || true
+          gh label create "ready-to-implement" --color "00FF00" --description "Plan approved, ready for implementation" --force || true
+          gh label create "needs-human-input" --color "FF0000" --description "Agents need human decision" --force || true
+          gh label create "claude-working" --color "0969DA" --description "Agent is actively working" --force || true
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+
       # Initialize new issues with spec-check label (entry point for the pipeline)
       - name: Initialize new issues with spec-check label
         if: steps.auth.outputs.authorized == 'true' && github.event_name == 'issues' && github.event.action == 'opened'
@@ -260,20 +274,6 @@ jobs:
               echo "Issue already has labels - skipping auto-label"
             fi
           fi
-        env:
-          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
-
-      # Ensure labels exist in repository
-      - name: Ensure labels exist
-        if: steps.auth.outputs.authorized == 'true'
-        run: |
-          gh label create "spec-check" --color "8B5CF6" --description "Spec Agent evaluating issue clarity" --force || true
-          gh label create "needs-clarification" --color "F59E0B" --description "Issue needs more detail before planning" --force || true
-          gh label create "planning" --color "0052CC" --description "Task needs implementation plan" --force || true
-          gh label create "plan-review" --color "FFA500" --description "Plan ready for critique" --force || true
-          gh label create "ready-to-implement" --color "00FF00" --description "Plan approved, ready for implementation" --force || true
-          gh label create "needs-human-input" --color "FF0000" --description "Agents need human decision" --force || true
-          gh label create "claude-working" --color "0969DA" --description "Agent is actively working" --force || true
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
 
