@@ -34,11 +34,26 @@ function LoginContent() {
           </p>
         </div>
 
-        {error && (
+        {error === "unauthorized" ? (
+          <div className="rounded-lg border bg-muted p-4 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">This is a personal deployment.</p>
+            <p className="mt-1">
+              To use Agent Taskboard, deploy your own instance.{" "}
+              <a
+                href="https://github.com/AdamCooke00/agent-taskboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-foreground"
+              >
+                See setup instructions →
+              </a>
+            </p>
+          </div>
+        ) : error ? (
           <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
             Authentication failed: {error}
           </div>
-        )}
+        ) : null}
 
         <a
           href="/api/auth/github"

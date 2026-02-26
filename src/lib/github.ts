@@ -24,6 +24,42 @@ export async function listUserRepos(token: string) {
   }));
 }
 
+// --- Webhook Management ---
+
+export async function ensureRepoWebhook(
+  token: string,
+  owner: string,
+  repo: string,
+  webhookUrl: string,
+  secret: string
+): Promise<void> {
+  const octokit = createOctokit(token);
+  const { data: hooks } = await octokit.repos.listWebhooks({ owner, repo });
+  const exists = hooks.some((h) => h.config.url === webhookUrl);
+  if (exists) return;
+  await octokit.repos.createWebhook({
+    owner,
+    repo,
+    name: "web",
+    active: true,
+    events: ["issues", "issue_comment", "pull_request", "workflow_run"],
+    config: { url: webhookUrl, content_type: "json", secret },
+  });
+}
+
+export async function removeRepoWebhook(
+  token: string,
+  owner: string,
+  repo: string,
+  webhookUrl: string
+): Promise<void> {
+  const octokit = createOctokit(token);
+  const { data: hooks } = await octokit.repos.listWebhooks({ owner, repo });
+  const hook = hooks.find((h) => h.config.url === webhookUrl);
+  if (!hook) return;
+  await octokit.repos.deleteWebhook({ owner, repo, hook_id: hook.id });
+}
+
 // --- Issue/PR → Conversation Mapping ---
 
 export async function listConversations(

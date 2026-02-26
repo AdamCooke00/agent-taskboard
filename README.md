@@ -77,6 +77,7 @@ node -e "console.log(require('crypto').randomBytes(20).toString('hex'))"
 | `GITHUB_WEBHOOK_SECRET` | Random hex string | From Step 2 |
 | `GITHUB_CLIENT_ID` | From GitHub OAuth App | Add after Step 4 |
 | `GITHUB_CLIENT_SECRET` | From GitHub OAuth App | Add after Step 4 |
+| `ALLOWED_USER` | Your GitHub username | Locks app to your account only |
 
 4. Click **Deploy** — you'll get a live URL (e.g. `agent-taskboard.vercel.app`)
 
@@ -100,21 +101,14 @@ The app uses GitHub OAuth so you can log in with your GitHub account.
 
 ### Step 5 — Configure GitHub Webhooks
 
-For each repo you want to track in the taskboard, add a webhook so the app is notified of activity in real time.
+**Webhooks are managed automatically.** When you add or remove a repo in the app's Settings page, the webhook is created or deleted on that repo automatically — no manual steps required.
 
-1. Go to the repo on GitHub → Settings → Webhooks → **Add webhook**
-2. Fill in:
-   - **Payload URL**: `https://your-app.vercel.app/api/webhooks/github`
-   - **Content type**: `application/json`
-   - **Secret**: your `GITHUB_WEBHOOK_SECRET` value
-   - **Which events?** → Select individual events:
-     - Issues
-     - Issue comments
-     - Pull requests
-     - Workflow runs
-3. Click **Add webhook**
+The only caveat: this requires you to have admin access to the repo. For repos you own, it always works. For repos you're a collaborator on without admin rights, the webhook will be silently skipped and you'll need to ask the repo owner to add it manually:
 
-Repeat for each repo you want to track.
+- **Payload URL**: `https://your-app.vercel.app/api/webhooks/github`
+- **Content type**: `application/json`
+- **Secret**: your `GITHUB_WEBHOOK_SECRET` value
+- **Events**: Issues, Issue comments, Pull requests, Workflow runs
 
 ### Step 6 — Install on iPhone
 

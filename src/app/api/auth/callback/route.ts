@@ -41,6 +41,12 @@ export async function GET(req: NextRequest) {
 
   const userData = await userResponse.json();
 
+  // Block anyone who isn't the configured owner
+  const allowedUser = process.env.ALLOWED_USER;
+  if (allowedUser && userData.login?.toLowerCase() !== allowedUser.toLowerCase()) {
+    return NextResponse.redirect(new URL("/login?error=unauthorized", req.url));
+  }
+
   // Store in session
   const session = await getSession();
   session.githubToken = tokenData.access_token;
