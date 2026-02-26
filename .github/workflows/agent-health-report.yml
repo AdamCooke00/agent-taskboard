@@ -33,6 +33,9 @@ jobs:
           allowed_bots: "claude"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
+            IMPORTANT: Every issue you create must have its body start with this exact tag as the very first line: <!-- agent:health-report -->
+            This is an invisible HTML comment that identifies the agent. Place it before any other content.
+
             Generate a weekly health report on Claude's activity and effectiveness.
 
             Use GitHub CLI to gather data from the past 7 days:
@@ -97,6 +100,9 @@ jobs:
           allowed_bots: "claude"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
+            IMPORTANT: Every issue you create must have its body start with this exact tag as the very first line: <!-- agent:health-report -->
+            This is an invisible HTML comment that identifies the agent. Place it before any other content.
+
             Generate a weekly health report on Claude's activity and effectiveness.
 
             Use GitHub CLI to gather data from the past 7 days:

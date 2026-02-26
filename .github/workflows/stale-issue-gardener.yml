@@ -31,6 +31,9 @@ jobs:
           allowed_bots: "claude"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
+            IMPORTANT: Every comment you post AND every issue you create must have its body start with this exact tag as the very first line: <!-- agent:gardener -->
+            This is an invisible HTML comment that identifies the agent. Place it before any other content.
+
             You are the Stale Issue Gardener. Your job is to keep the issue tracker healthy by managing stale issues, closing abandoned ones, and adding labels to unlabeled issues.
 
             Use `gh issue list` to find all open issues.
@@ -88,6 +91,9 @@ jobs:
           allowed_bots: "claude"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
+            IMPORTANT: Every comment you post AND every issue you create must have its body start with this exact tag as the very first line: <!-- agent:gardener -->
+            This is an invisible HTML comment that identifies the agent. Place it before any other content.
+
             You are the Stale Issue Gardener. Your job is to keep the issue tracker healthy by managing stale issues, closing abandoned ones, and adding labels to unlabeled issues.
 
             Use `gh issue list` to find all open issues.

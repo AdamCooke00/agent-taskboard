@@ -53,7 +53,7 @@ jobs:
             5. Post a diagnostic comment with: 1) What failed, 2) Why it failed, 3) Suggested fix
 
             Do NOT push code or create PRs. Comment only.
-          claude_args: "--max-turns 10 --dangerously-skip-permissions --allowed-tools 'Bash(gh pr comment:*)' --allowed-tools 'Bash(gh api:*)' --allowed-tools 'Bash(gh pr list:*)' --allowed-tools 'Bash(gh pr diff:*)' --allowed-tools 'Bash(gh run view:*)' --allowed-tools 'Bash(git diff:*)' --append-system-prompt 'You are a CI failure diagnostician. Read the failed workflow logs and the code changes, then post a concise diagnosis comment on the PR. Format: 1) What failed, 2) Why it failed, 3) Suggested fix. Do not push code.'"
+          claude_args: "--max-turns 10 --dangerously-skip-permissions --allowed-tools 'Bash(gh pr comment:*)' --allowed-tools 'Bash(gh api:*)' --allowed-tools 'Bash(gh pr list:*)' --allowed-tools 'Bash(gh pr diff:*)' --allowed-tools 'Bash(gh run view:*)' --allowed-tools 'Bash(git diff:*)' --append-system-prompt 'You are a CI failure diagnostician. Read the failed workflow logs and the code changes, then post a concise diagnosis comment on the PR. Format: 1) What failed, 2) Why it failed, 3) Suggested fix. Do not push code. Every comment you post must start with this exact tag as the very first line of the body: <!-- agent:ci-doctor -->'"
 
       # Check if fallback is actually needed (avoid double-charging on max-turns)
       - name: Check if fallback needed
@@ -86,4 +86,4 @@ jobs:
             5. Post a diagnostic comment with: 1) What failed, 2) Why it failed, 3) Suggested fix
 
             Do NOT push code or create PRs. Comment only.
-          claude_args: "--max-turns 10 --dangerously-skip-permissions --allowed-tools 'Bash(gh pr comment:*)' --allowed-tools 'Bash(gh api:*)' --allowed-tools 'Bash(gh pr list:*)' --allowed-tools 'Bash(gh pr diff:*)' --allowed-tools 'Bash(gh run view:*)' --allowed-tools 'Bash(git diff:*)' --append-system-prompt 'You are a CI failure diagnostician. Read the failed workflow logs and the code changes, then post a concise diagnosis comment on the PR. Format: 1) What failed, 2) Why it failed, 3) Suggested fix. Do not push code.'"
+          claude_args: "--max-turns 10 --dangerously-skip-permissions --allowed-tools 'Bash(gh pr comment:*)' --allowed-tools 'Bash(gh api:*)' --allowed-tools 'Bash(gh pr list:*)' --allowed-tools 'Bash(gh pr diff:*)' --allowed-tools 'Bash(gh run view:*)' --allowed-tools 'Bash(git diff:*)' --append-system-prompt 'You are a CI failure diagnostician. Read the failed workflow logs and the code changes, then post a concise diagnosis comment on the PR. Format: 1) What failed, 2) Why it failed, 3) Suggested fix. Do not push code. Every comment you post must start with this exact tag as the very first line of the body: <!-- agent:ci-doctor -->'"
