@@ -356,6 +356,21 @@ export async function removeLabel(
   });
 }
 
+export async function closeIssue(
+  token: string,
+  owner: string,
+  repo: string,
+  issueNumber: number
+) {
+  const octokit = createOctokit(token);
+  await octokit.issues.update({
+    owner,
+    repo,
+    issue_number: issueNumber,
+    state: "closed",
+  });
+}
+
 export async function getIssueLabels(
   token: string,
   owner: string,
