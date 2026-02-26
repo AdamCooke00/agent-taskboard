@@ -191,6 +191,17 @@ function resolveAgentType(
   return null;
 }
 
+function parseAgentTag(body: string): { agentType: string | null; cleanBody: string } {
+  const match = body.match(/^<!--\s*agent:([\w][\w-]*)\s*-->/);
+  if (match) {
+    return {
+      agentType: match[1],
+      cleanBody: body.slice(match[0].length).replace(/^\n/, ""),
+    };
+  }
+  return { agentType: null, cleanBody: body };
+}
+
 function isHumanComment(body: string): boolean {
   const trimmed = body.trim();
   return trimmed.startsWith("@claude") || trimmed.startsWith("<!-- auto-continue -->");
@@ -212,17 +223,22 @@ export async function listMessages(
     issue_number: issueNumber,
   });
 
+  // Parse agent tag from issue/PR body
+  const issueBodyParsed = parseAgentTag(issue.body || "");
+  const issueAuthor = {
+    login: issue.user?.login || "unknown",
+    avatarUrl: issue.user?.avatar_url || "",
+    isBot: issue.user?.type === "Bot" || !!issueBodyParsed.agentType,
+  };
+
   const messages: Message[] = [
     {
       id: issue.id,
-      author: {
-        login: issue.user?.login || "unknown",
-        avatarUrl: issue.user?.avatar_url || "",
-        isBot: issue.user?.type === "Bot",
-      },
-      body: issue.body || "",
+      author: issueAuthor,
+      body: issueBodyParsed.cleanBody,
       createdAt: issue.created_at,
       type: issue.pull_request ? "pr_body" : "issue_body",
+      ...(issueBodyParsed.agentType && { agentType: issueBodyParsed.agentType as AgentType }),
     },
   ];
 
@@ -285,6 +301,16 @@ export async function listMessages(
   for (const message of messages) {
     if (message.type === "issue_body" || message.type === "pr_body") continue;
 
+    // Parse agent tag from comment body (takes priority over label-event detection)
+    const parsed = parseAgentTag(message.body);
+    if (parsed.agentType) {
+      message.agentType = parsed.agentType as AgentType;
+      message.body = parsed.cleanBody;
+      message.author.isBot = true;
+      continue; // Skip label-event fallback
+    }
+
+    // Fallback to label-event detection for older comments without tags
     if (message.author.isBot) {
       // Already identified as bot (e.g., claude[bot]) — resolve agent type
       message.agentType = resolveAgentType(message.createdAt, labelEvents);
