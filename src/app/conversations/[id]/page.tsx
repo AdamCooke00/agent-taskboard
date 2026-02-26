@@ -20,6 +20,8 @@ import useSWR from "swr";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+const READ_ONLY_LABELS = ["daily-digest", "agent-health-report", "gardener-report"];
+
 function parseConversationId(id: string) {
   const parts = id.split("-");
   const number = parseInt(parts.pop()!, 10);
@@ -41,6 +43,7 @@ export default function ConversationPage() {
   const { messages, isLoading, mutate } = useMessages(owner, repo, number);
   const [sending, setSending] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [closing, setClosing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Derive last activity timestamp from the most recent message
@@ -64,6 +67,7 @@ export default function ConversationPage() {
   const isReadyToImplement = labels.includes("ready-to-implement");
   const needsHumanInput = labels.includes("needs-human-input");
   const isWorking = labels.includes("claude-working");
+  const isReadOnly = labels.some((label) => READ_ONLY_LABELS.includes(label));
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -119,6 +123,30 @@ export default function ConversationPage() {
     mutateLabels();
     mutate();
   }, [user, approving, owner, repo, number, messages, mutate, mutateLabels]);
+
+  const handleClose = async () => {
+    if (closing) return;
+    setClosing(true);
+
+    try {
+      const response = await fetch("/api/github/issues", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ owner, repo, number, state: "closed" }),
+      });
+
+      if (!response.ok) {
+        console.error("Failed to close issue");
+        setClosing(false);
+        return;
+      }
+
+      router.push("/");
+    } catch (error) {
+      console.error("Error closing issue:", error);
+      setClosing(false);
+    }
+  };
 
   const githubUrl = `https://github.com/${owner}/${repo}/${type === "pr" ? "pull" : "issues"}/${number}`;
 
@@ -231,6 +259,9 @@ export default function ConversationPage() {
           onSend={handleSend}
           disabled={sending}
           placeholder={isPlanning ? "Provide feedback or guidance..." : "Reply to agent..."}
+          showCloseButton={isReadOnly}
+          onClose={handleClose}
+          closing={closing}
         />
       </div>
     </div>
