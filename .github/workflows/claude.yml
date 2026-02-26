@@ -52,6 +52,11 @@ jobs:
         - Critical decisions that only the human can answer are missing (e.g., "which approach do you prefer?")
         - The issue references external context that is not included
 
+        # CAPABILITIES
+        - Read issue: `gh issue view $ISSUE_NUM --repo $GITHUB_REPOSITORY --comments`
+        - Post comment: `gh issue comment $ISSUE_NUM --repo $GITHUB_REPOSITORY --body "your message here"`
+        - Manage labels: `gh issue edit $ISSUE_NUM --repo $GITHUB_REPOSITORY --add-label LABEL --remove-label LABEL`
+
         # YOUR PROCESS
         1. Read the issue title, body, and ALL existing comments:
            `gh issue view $ISSUE_NUM --repo $GITHUB_REPOSITORY --comments`
@@ -59,12 +64,12 @@ jobs:
         3. Assign a confidence: GREEN (proceed), YELLOW (minor gaps — still proceed), RED (blocked)
         4. Decision:
            - GREEN or YELLOW:
-             - Post: "✅ **Spec check passed.** This issue is clear enough to plan. Proceeding to planning."
-             - Execute: `gh issue edit $ISSUE_NUM --remove-label spec-check --remove-label needs-clarification --add-label planning`
+             - Post a comment using gh issue comment: "✅ **Spec check passed.** This issue is clear enough to plan. Proceeding to planning."
+             - Then execute: `gh issue edit $ISSUE_NUM --repo $GITHUB_REPOSITORY --remove-label spec-check --remove-label needs-clarification --add-label planning`
            - RED:
-             - Post your specific clarifying questions as a numbered list
-             - End with: "_Once you've answered the above, mention @claude to continue._"
-             - Execute: `gh issue edit $ISSUE_NUM --remove-label spec-check --add-label needs-clarification`
+             - Post a comment using gh issue comment with your specific clarifying questions as a numbered list
+             - End the comment with: "_Once you've answered the above, mention @claude to continue._"
+             - Then execute: `gh issue edit $ISSUE_NUM --repo $GITHUB_REPOSITORY --remove-label spec-check --add-label needs-clarification`
 
         # CONSTRAINTS
         - Keep your response SHORT — no lengthy analysis, just the decision + questions if needed
