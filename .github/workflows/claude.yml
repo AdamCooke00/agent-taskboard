@@ -320,6 +320,16 @@ jobs:
           fi
           LABELS=$(gh issue view "$ISSUE_NUM" --repo "$GITHUB_REPOSITORY" --json labels --jq '[.labels[].name] | join(",")' 2>/dev/null || echo "")
 
+          # Check for fix-mode (PR with review issues) before label-based routing
+          IS_REVIEW_FIX="${{ contains(github.event.comment.body, '<!-- review-fix-cycle -->') }}"
+          if [ "${{ github.event_name }}" = "issue_comment" ] && [ "$IS_REVIEW_FIX" = "true" ]; then
+            if echo "$LABELS" | grep -q "needs-review"; then
+              echo "agent=fix" >> $GITHUB_OUTPUT
+              echo "Agent mode: fix (review-fix-cycle marker detected in comment, needs-review label present)"
+              exit 0
+            fi
+          fi
+
           # Check labels in priority order
           if echo "$LABELS" | grep -q "ready-to-implement"; then
             echo "agent=implement" >> $GITHUB_OUTPUT
@@ -506,6 +516,41 @@ jobs:
             --dangerously-skip-permissions
             --allowedTools "Read,Glob,Grep,Bash(gh *),Bash(git *),Bash(cat *)"
             --append-system-prompt "CRITICAL WORKFLOW: You are running in CI with a turn limit. Follow this exact order: 0) Read project learnings to avoid known pitfalls: use the Read tool on 'docs/agent-learnings.md' if it exists. 1) Read the approved plan from issue #${{ github.event.issue.number }} using 'gh issue view' to extract comments containing the implementation plan. 2) Create a working branch and push it immediately. 3) Implement the plan, committing and pushing after EVERY meaningful change — do NOT batch commits until the end. 4) Create a PR using 'gh pr create' with the plan included in the body under '## Implementation Plan' section. Include 'Closes #${{ github.event.issue.number }}' in the body. 5) After PR creation, check if code changes include logic files (not just docs/tests): if so, add needs-tests label using 'gh pr edit PR_NUM --add-label needs-tests'. 6) NEVER use risk labels (auto-merge/needs-review/blocked) — the PR Label Agent will apply those. 7) NEVER stop without having committed, pushed, and created the PR. 8) If you sense low turns remaining, immediately commit, push, and ensure the PR exists."
+
+      # Fix Agent: Apply code review fixes on existing PR (Sonnet, 50 turns)
+      - name: Run Fix Agent
+        id: fix_max
+        if: steps.mode.outputs.agent == 'fix' && env.HAS_MAX_TOKEN == 'true'
+        continue-on-error: true
+        uses: anthropics/claude-code-action@v1
+        with:
+          display_report: "false"
+          prompt: "Fix the code review issues on PR #${{ github.event.issue.number }} in repository ${{ github.repository }}."
+          allowed_bots: "claude"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.PAT_TOKEN }}
+          claude_args: >-
+            --model claude-sonnet-4-5-20250929
+            --max-turns 50
+            --dangerously-skip-permissions
+            --allowedTools "Read,Glob,Grep,Bash(gh *),Bash(git *),Bash(cat *)"
+            --append-system-prompt "CRITICAL WORKFLOW: You are the Fix Agent running in CI with a turn limit. Your job is to fix code review issues on an existing PR. Follow this exact order: 0) Read project learnings from docs/agent-learnings.md if it exists. 1) Check out the PR branch: gh pr checkout ${{ github.event.issue.number }}. 2) Read PR description for plan context: gh pr view ${{ github.event.issue.number }} --json body. 3) Read latest code review to identify issues: gh pr view ${{ github.event.issue.number }} --comments. 4) Apply each fix identified in the review. Fix ONLY the issues mentioned - no scope creep. 5) Commit with a descriptive message. 6) Push to PR branch: git push. 7) Do NOT create a new PR. Do NOT modify unrelated code. Do NOT add labels. 8) If low on turns, immediately commit and push whatever fixes are complete."
+
+      - name: Run Fix Agent (Fallback)
+        if: steps.mode.outputs.agent == 'fix' && (env.HAS_MAX_TOKEN != 'true' || steps.fix_max.outcome != 'success')
+        uses: anthropics/claude-code-action@v1
+        with:
+          display_report: "false"
+          prompt: "Fix the code review issues on PR #${{ github.event.issue.number }} in repository ${{ github.repository }}."
+          allowed_bots: "claude"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.PAT_TOKEN }}
+          claude_args: >-
+            --model claude-sonnet-4-5-20250929
+            --max-turns 50
+            --dangerously-skip-permissions
+            --allowedTools "Read,Glob,Grep,Bash(gh *),Bash(git *),Bash(cat *)"
+            --append-system-prompt "CRITICAL WORKFLOW: You are the Fix Agent running in CI with a turn limit. Your job is to fix code review issues on an existing PR. Follow this exact order: 0) Read project learnings from docs/agent-learnings.md if it exists. 1) Check out the PR branch: gh pr checkout ${{ github.event.issue.number }}. 2) Read PR description for plan context: gh pr view ${{ github.event.issue.number }} --json body. 3) Read latest code review to identify issues: gh pr view ${{ github.event.issue.number }} --comments. 4) Apply each fix identified in the review. Fix ONLY the issues mentioned - no scope creep. 5) Commit with a descriptive message. 6) Push to PR branch: git push. 7) Do NOT create a new PR. Do NOT modify unrelated code. Do NOT add labels. 8) If low on turns, immediately commit and push whatever fixes are complete."
 
       # Auto-continue: if Claude hit the turn limit AND work is incomplete, post a continuation comment
       - name: Auto-continue on turn exhaustion
